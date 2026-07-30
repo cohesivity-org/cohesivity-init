@@ -18,5 +18,3 @@ jobs:
           node-version: 22
       - run: node --check bin/cli.js
       - run: node --test
-      - name: pack and show what ships
-        run: npm pack --dry-run
