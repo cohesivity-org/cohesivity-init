@@ -1,0 +1,49 @@
+# Publishes @cohesivity/init to npm with provenance.
+#
+# Auth is npm Trusted Publishing (OIDC), so there is no NPM_TOKEN secret in this
+# repo. npm verifies the request came from this workflow in this repo and stamps
+# a signed provenance attestation linking the tarball to the exact commit.
+#
+# One-time setup on npmjs.com: package settings -> Trusted Publisher ->
+# GitHub Actions, repository cohesivity-org/cohesivity-init, workflow release.yml.
+#
+# Release: bump the version in package.json and bin/cli.js (the test enforces
+# they match), merge, then push a matching tag: git tag v0.1.1 && git push --tags
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required for provenance and trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs npm >= 11.5.1; the runner ships an older npm.
+      - run: npm install -g npm@latest
+
+      - run: node --check bin/cli.js
+      - run: node --test
+
+      - name: tag must match package.json version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "tag $tag does not match package.json $pkg"
+            exit 1
+          fi
+
+      - run: npm publish

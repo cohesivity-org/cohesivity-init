@@ -1,0 +1,35 @@
+{
+  "name": "@cohesivity/init",
+  "version": "0.1.1",
+  "description": "Set up Cohesivity in a project: install the agent skill, create a managed backend tenant, write the project config. Run with `npx @cohesivity/init`.",
+  "type": "module",
+  "bin": {
+    "cohesivity-init": "bin/cli.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "files": [
+    "bin/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "cohesivity",
+    "backend",
+    "ai-agents",
+    "agent-native",
+    "quickstart",
+    "skill"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cohesivity-org/cohesivity-init.git"
+  },
+  "homepage": "https://cohesivity.ai"
+}
