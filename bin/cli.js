@@ -32,8 +32,17 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.1.1';
+const PKG_VERSION = '0.1.2';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
+
+// Machine id: one per machine, stored outside any project. A project's
+// .cohesivity is per project, so a machine that runs setup in several projects
+// owns several tenants; this is what tells the server they came from one setup
+// rather than several unrelated people. Sent on genesis; the server issues one
+// only when we send none, so it is written exactly once and reused thereafter.
+const MACHINE_ID_HEADER = 'X-Cohesivity-Machine-Id';
+const MACHINE_ID_DIR = join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'cohesivity');
+const MACHINE_ID_FILE = join(MACHINE_ID_DIR, 'machine-id');
 
 // The skill is pinned to an immutable commit in the public, auditable repo.
 // Bumping the pin is a deliberate release step. See COH-172.
@@ -156,10 +165,17 @@ async function ensureTenant() {
     return;
   }
   if (DRY) { act(`create a tenant: POST ${BASE}/api/genesis  ->  ./.cohesivity  (+ .gitignore)`); return; }
+  const machineId = readMachineId();
   let body;
+  let issuedMachineId = null;
   try {
-    const res = await fetch(`${BASE}/api/genesis`, { method: 'POST', headers: { 'User-Agent': UA } });
+    const headers = { 'User-Agent': UA };
+    if (machineId) headers[MACHINE_ID_HEADER] = machineId;
+    const res = await fetch(`${BASE}/api/genesis`, { method: 'POST', headers });
     body = await res.text();
+    // Only ever returned on the request that minted it, so this is non-null
+    // exactly when we sent none.
+    issuedMachineId = res.headers.get(MACHINE_ID_HEADER);
   } catch (e) {
     log(`no tenant created (network: ${e.message}). Re-run to retry. The command is idempotent.`);
     return;
@@ -170,7 +186,30 @@ async function ensureTenant() {
   }
   writeFileSync(dotfile, body);
   ensureGitignore();
+  if (!machineId && issuedMachineId) writeMachineId(issuedMachineId);
   log('created an ephemeral tenant -> ./.cohesivity');
+}
+
+// Read the machine id, or null when this machine has none. Every failure —
+// missing file, unreadable dir, garbage contents — reads as "none", which just
+// means the next genesis call is issued a fresh id.
+function readMachineId() {
+  try {
+    const raw = readFileSync(MACHINE_ID_FILE, 'utf8').trim();
+    return /^mach_[a-z0-9]+\.[A-Za-z0-9_-]+$/.test(raw) ? raw : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// Persist a newly issued id. Best-effort by design: a read-only or unwritable
+// config dir must not fail setup — the tenant already exists by this point, and
+// the only cost of not writing is that the next project is issued another id.
+function writeMachineId(value) {
+  try {
+    mkdirSync(MACHINE_ID_DIR, { recursive: true });
+    writeFileSync(MACHINE_ID_FILE, `${value}\n`);
+  } catch (_) { /* not worth failing or mentioning */ }
 }
 
 function ensureGitignore() {
