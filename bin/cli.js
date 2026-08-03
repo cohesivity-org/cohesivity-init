@@ -34,7 +34,7 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.2.3';
+const PKG_VERSION = '0.2.4';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 
 // Machine id: one per machine, stored outside any project. A project's
@@ -142,11 +142,18 @@ function inferHarness(chain) {
 function inferModel(harness) {
   if (!harness) return null;
   try {
-    const roots = [
-      join(homedir(), '.' + harness),
-      join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), harness),
-      join(process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share'), harness),
-    ];
+    // A harness's state dir is not always named exactly like its process: the
+    // binary is cursor-agent but the dir is ~/.cursor, the script is
+    // pi-coding-agent but the dir is ~/.pi. So the measured name is also tried
+    // truncated at each hyphen — a general string rule over the name, not a
+    // list of harnesses. Nonexistent paths cost nothing; the walk skips them.
+    const names = [];
+    for (let n = harness; n; n = n.includes('-') ? n.slice(0, n.lastIndexOf('-')) : '') {
+      if (!names.includes(n)) names.push(n);
+    }
+    const cfgHome = process.env.XDG_CONFIG_HOME || join(homedir(), '.config');
+    const dataHome = process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share');
+    const roots = names.flatMap((n) => [join(homedir(), '.' + n), join(cfgHome, n), join(dataHome, n)]);
     const cutoff = Date.now() - 10 * 60 * 1000;
     const files = [];
     const walk = (dir, depth) => {
