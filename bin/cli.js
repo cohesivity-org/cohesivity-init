@@ -34,7 +34,7 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.3.0';
+const PKG_VERSION = '0.3.1';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 
 // Machine id: one per machine, stored outside any project. A project's
@@ -51,85 +51,39 @@ const MACHINE_ID_FILE = join(MACHINE_ID_DIR, 'machine-id');
 const SKILL_PIN = 'a4c0e90373b2d61501e4fb544a760b4a602fc14e';
 const SKILL_URL = `https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/${SKILL_PIN}/cohesivity.skill.md`;
 
-// ── attribution: measured from the machine, never asked of the model ────────
-// The genesis call carries two measured facts:
-//   - The raw ancestor-process command chain (innermost first, home folded to
-//     ~), sent verbatim as X-Cohesivity-Ancestry. The server stores it
-//     untouched, so harness classification stays a query-time lens and a new
-//     harness is discovered from data, never shipped in a list here.
-//   - UA `{npx:<harness>, <model>}`: the harness is the innermost ancestor
-//     that is not generic plumbing (closed sets below — shells, wrappers,
-//     interpreters, terminals; never harness names, so any harness names
-//     itself), and the model id is read out of that harness's own live
-//     session log. Anything not inferable is the literal "none" — no info is
-//     better than false info.
-const ANCESTRY_HEADER = 'X-Cohesivity-Ancestry';
+// Harness: the nearest ancestor process that is not generic plumbing. Only
+// this process's own lineage is read — never the system process list — and only
+// the resulting name is sent. The sets below are closed lists of Unix plumbing,
+// interpreters, and generic path segments; they never name a harness, so any
+// harness, present or future, identifies itself by its own process or script
+// name. Nothing inferable -> null, never a guess.
+const PLUMBING = new Set('sh bash zsh fish dash ksh csh tcsh env sudo doas timeout timelimit nice setsid nohup xargs script ssh sshd tmux screen login su init systemd launchd docker containerd containerd-shim runc podman npm npx pnpm yarn bunx ps awk grep sed find curl wget gnome-terminal konsole xterm alacritty kitty wezterm tilix terminator iterm2 terminal warp-terminal'.split(' '));
+const INTERPRETERS = new Set('node bun deno python python2 python3 ruby perl'.split(' '));
+const GENERIC = new Set('cli index main app run dist build bin lib libexec src out node_modules _npx versions current'.split(' '));
 
-// Closed sets: the plumbing an ancestor chain routes through, the interpreter
-// binaries whose script path carries the real name, and the generic segments
-// inside those paths. Harness names never belong in any of these.
-const PLUMBING = new Set(['sh', 'bash', 'zsh', 'fish', 'dash', 'ksh', 'csh', 'tcsh', 'env', 'sudo', 'doas', 'timeout', 'timelimit', 'nice', 'ionice', 'stdbuf', 'setsid', 'nohup', 'xargs', 'script', 'ssh', 'sshd', 'tmux', 'screen', 'login', 'su', 'init', 'systemd', 'launchd', 'docker', 'containerd', 'containerd-shim', 'runc', 'podman', 'npm', 'npx', 'pnpm', 'yarn', 'bunx', 'corepack', 'ps', 'awk', 'grep', 'sed', 'cat', 'tr', 'cut', 'head', 'tail', 'find', 'curl', 'wget', 'gnome-terminal', 'konsole', 'xterm', 'alacritty', 'kitty', 'wezterm', 'tilix', 'terminator', 'iterm2', 'terminal', 'warp-terminal']);
-const INTERPRETERS = new Set(['node', 'bun', 'deno', 'python', 'python3', 'python2', 'ruby', 'perl']);
-const GENERIC_SEGMENTS = new Set(['dist', 'build', 'bin', '.bin', 'lib', 'libexec', 'src', 'out', 'app', 'node_modules', '_npx', 'versions', 'current', 'cli.js', 'index.js', 'main.js', 'app.js', 'run.py', 'main.py', '__main__.py', 'npm-cli.js', 'npx-cli.js', 'yarn.js', 'pnpm.cjs', 'corepack.js']);
-
-// The raw chain, or null when unreadable (no `ps`, restricted /proc) — null
-// sends nothing; it never guesses.
-function ancestry() {
-  try {
-    const out = execSync('ps -eo pid=,ppid=,args=', { timeout: 2000 }).toString();
-    const pp = {}; const cmd = {};
-    for (const line of out.split('\n')) {
-      const m = line.match(/^\s*(\d+)\s+(\d+)\s+(.*)/);
-      if (m) { pp[m[1]] = m[2]; cmd[m[1]] = m[3].split(homedir()).join('~').slice(0, 120); }
+function inferHarness() {
+  let pid = process.ppid;
+  for (let i = 0; i < 20 && pid > 1; i++) {
+    let argv, ppid;
+    try {
+      argv = readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').filter(Boolean);
+      ppid = Number(readFileSync(`/proc/${pid}/stat`, 'utf8').split(') ').pop().split(' ')[1]);
+    } catch {
+      try {
+        argv = execSync(`ps -o args= -p ${pid}`, { timeout: 2000 }).toString().trim().split(/\s+/);
+        ppid = Number(execSync(`ps -o ppid= -p ${pid}`, { timeout: 2000 }).toString().trim());
+      } catch { return null; }
     }
-    const chain = [];
-    // Start at the PARENT: this process is `node .../cli.js` and must never
-    // infer itself as the harness.
-    for (let p = pp[String(process.pid)], i = 0; i < 20 && cmd[p]; p = pp[p], i++) chain.push(reduceEntry(cmd[p]));
-    return chain.filter(Boolean).join(' | ').replace(/[^\w ._:;()/+~@,|-]/g, '').slice(0, 800) || null;
-  } catch { return null; }
-}
-
-// Keep the program that ran; drop its arguments before anything is sent.
-//
-// Arguments are pure liability and identify nothing. A real caller's chain
-// reached the server carrying live AWS credentials, because its parent was
-// `sh -c export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...`; agent
-// invocations put the user's prompt on the command line the same way. argv[0]
-// names the harness, and for an interpreter the script path does, so one
-// path-like argument that is neither a URL nor a k=v assignment survives.
-function reduceEntry(entry) {
-  const tokens = String(entry).trim().split(/\s+/).filter(Boolean);
-  if (!tokens.length) return '';
-  const prog = tokens[0];
-  const base = prog.split('/').pop().replace(/^-/, '');
-  if (!INTERPRETERS.has(base)) return prog;
-  for (const tok of tokens.slice(1)) {
-    if (tok.includes('=') || tok.includes('://')) continue;
-    if (tok.includes('/')) return `${prog} ${tok}`;
-  }
-  return prog;
-}
-
-function inferHarness(chain) {
-  for (const entry of (chain || '').split(' | ')) {
-    const tokens = entry.trim().split(' ');
-    const first = (tokens[0] || '').split('/').pop().replace(/^-/, '');
-    if (INTERPRETERS.has(first)) {
-      // Interpreter: the name lives in the script path (…/pi-coding-agent/dist/cli.js).
-      for (const tok of tokens.slice(1)) {
-        if (!tok.includes('/')) continue;
-        const segs = tok.split('/');
-        for (let k = segs.length - 1; k >= 0; k--) {
-          const s = segs[k].replace(/^@/, '');
-          if (s && s !== '~' && !GENERIC_SEGMENTS.has(s) && !PLUMBING.has(s)) {
-            return s.replace(/\.(js|mjs|cjs|py|rb|pl)$/, '').slice(0, 40);
-          }
-        }
-      }
-    } else if (first && !PLUMBING.has(first)) {
-      return first.slice(0, 40);
+    let name = (argv[0] || '').split('/').pop().replace(/^-/, '');
+    if (INTERPRETERS.has(name)) {
+      const script = argv.slice(1).find((a) => a.includes('/') && !a.includes('='));
+      const segs = (script || '').split('/').filter(Boolean);
+      while (segs.length && GENERIC.has(segs[segs.length - 1].replace(/\.\w+$/, ''))) segs.pop();
+      if (segs.length) name = segs.pop().replace(/\.\w+$/, '');
     }
+    if (name && !PLUMBING.has(name)) return name.replace(/[^\w.-]/g, '').slice(0, 40) || null;
+    if (!Number.isFinite(ppid)) return null;
+    pid = ppid;
   }
   return null;
 }
@@ -142,11 +96,10 @@ const rel = (p) => p.replace(CWD + '/', '');
 const log = (m) => console.log(`cohesivity: ${m}`);
 const act = (m) => console.log(`cohesivity: ${DRY ? '[dry-run] would ' : ''}${m}`);
 
-const ANCESTRY = ancestry();
 // --runtime / COHESIVITY_RUNTIME is an explicit override for the label — user
 // intent, not detection. Everything else is measured.
 const EXPLICIT = String(flag('--runtime') || process.env.COHESIVITY_RUNTIME || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
-const HARNESS = EXPLICIT || inferHarness(ANCESTRY) || 'none';
+const HARNESS = EXPLICIT || inferHarness() || 'none';
 const UA = `{npx:${HARNESS}}`;
 
 // claude-web's sandbox is non-persistent, so a global skill install cannot
@@ -226,7 +179,6 @@ async function ensureTenant() {
   let issuedMachineId = null;
   try {
     const headers = { 'User-Agent': UA };
-    if (ANCESTRY) headers[ANCESTRY_HEADER] = ANCESTRY;
     if (machineId) headers[MACHINE_ID_HEADER] = machineId;
     const res = await fetch(`${BASE}/api/genesis`, { method: 'POST', headers });
     body = await res.text();
@@ -358,8 +310,9 @@ What it does:
   3. Adds a descriptive pointer to an existing AGENTS.md / CLAUDE.md
   4. Adds one branding line to the README (managed block)
 
-Attribution: the tenant-creation call carries the raw ancestor-process chain
-(X-Cohesivity-Ancestry) and a measured User-Agent {npx:<harness>, <model>}.
-Nothing is guessed: anything not inferable is sent as "none".
+Attribution: the tenant-creation call carries a User-Agent of the shape
+{npx:<harness>}, where the harness is measured from this process's own
+parents. Nothing else about your machine is read or sent, and anything not
+inferable is sent as "none".
 `);
 }

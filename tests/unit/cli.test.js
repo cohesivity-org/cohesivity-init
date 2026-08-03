@@ -36,14 +36,30 @@ test('PKG_VERSION matches package.json version', () => {
 // ── attribution: measured, never asked ───────────────────────────────────────
 
 test('the plumbing denylist contains no harness names', () => {
-  const m = cli.match(/const PLUMBING = new Set\(\[([^\]]+)\]\)/);
+  const m = cli.match(/const PLUMBING = new Set\('([^']+)'/);
   assert.ok(m, 'PLUMBING set not found');
+  const deny = m[1].split(' ');
   for (const harness of ['claude', 'grok', 'codex', 'cursor', 'cursor-agent', 'opencode', 'hermes', 'pi', 'windsurf']) {
-    assert.ok(
-      !m[1].includes(`'${harness}'`),
-      `'${harness}' must never be denied — harnesses name themselves through the chain; the denylist is closed Unix plumbing only`,
-    );
+    assert.ok(!deny.includes(harness), `${harness} must never be denied — harnesses name themselves`);
   }
+  for (const plumbing of ['bash', 'npm', 'npx', 'timeout', 'timelimit', 'init', 'tmux', 'sshd']) {
+    assert.ok(deny.includes(plumbing), `${plumbing} is closed-set plumbing`);
+  }
+});
+
+test('only this process own lineage is read, never the system process list', () => {
+  // `ps -eo` dumps every process on the machine with full command lines, which
+  // reads as host reconnaissance and is how a third party's exported AWS key
+  // reached the server. Walking our own parents needs none of that.
+  assert.ok(!/ps -eo/.test(cli), 'never enumerates the process table');
+  assert.match(cli, /\/proc\/\$\{pid\}\/cmdline/, 'reads its own ancestors via /proc');
+  assert.match(cli, /ps -o args= -p/, 'per-pid fallback for platforms without /proc');
+  assert.match(cli, /let pid = process\.ppid/, 'starts at the parent, never itself');
+});
+
+test('nothing but the harness name leaves the machine', () => {
+  assert.ok(!/X-Cohesivity-Ancestry/.test(cli), 'no ancestry header');
+  assert.match(cli, /const UA = `\{npx:\$\{HARNESS\}\}`/, 'the UA carries the harness alone');
 });
 
 test('no model-id logic remains: the session log is never read', () => {
@@ -55,24 +71,6 @@ test('no model-id logic remains: the session log is never read', () => {
   assert.ok(!/mmin|mtimeMs/.test(cli), 'no recency scan');
   assert.ok(!/"model/.test(cli), 'no model field vocabulary');
   assert.match(cli, /const UA = `\{npx:\$\{HARNESS\}\}`/, 'UA carries the harness alone');
-});
-
-test('command arguments are dropped before the chain is sent', () => {
-  // A real caller's chain reached the server carrying live AWS credentials,
-  // because its parent was `sh -c export AWS_ACCESS_KEY_ID=… …`. Arguments
-  // also carry --token flags and, on agent invocations, the user's prompt.
-  // argv[0] identifies the harness; arguments are pure liability.
-  assert.match(cli, /function reduceEntry/, 'entries are reduced before transmission');
-  assert.match(cli, /chain\.push\(reduceEntry\(/, 'the reduction is applied while walking the chain');
-  assert.ok(!/\[\^\\w \._:;\(\)\/\+~@=,\|-\]/.test(cli), '= is no longer a transmitted character');
-});
-
-test('the ancestry chain starts at the parent, never this process', () => {
-  // `node …/cli.js` inferring itself (or the npx shim) as the harness is the
-  // self-attribution bug this pins.
-  assert.match(cli, /pp\[String\(process\.pid\)\]/, 'chain must start from the parent pid');
-  assert.ok(cli.includes(`'npx-cli.js'`), 'the npx shim script is a generic segment');
-  assert.ok(cli.includes(`'npm-cli.js'`), 'the npm shim script is a generic segment');
 });
 
 test('the skill pin is a full immutable commit sha', () => {
@@ -139,7 +137,7 @@ async function runCli(base, home, project, extraArgs = []) {
   return stdout;
 }
 
-test('genesis carries the measured UA shape and the raw ancestry chain', async () => {
+test('genesis carries the measured UA and nothing else', async () => {
   await withStubOrigin(async (base, seen, reqs) => {
     const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
     const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
@@ -148,11 +146,8 @@ test('genesis carries the measured UA shape and the raw ancestry chain', async (
       assert.equal(reqs.length, 1);
       // COHESIVITY_RUNTIME=claude-web is the explicit override in runCli.
       assert.equal(reqs[0].ua, '{npx:claude-web}');
-      // The raw chain rides as a header. This test process tree always exists,
-      // so on any POSIX CI the header is present and plumbing-shaped.
-      assert.ok(reqs[0].ancestry, 'X-Cohesivity-Ancestry sent');
-      assert.match(reqs[0].ancestry, /node|npm/, 'chain names the real ancestors');
-      assert.ok(reqs[0].ancestry.length <= 800, 'capped');
+      // Nothing but the UA: no chain, no process data.
+      assert.equal(reqs[0].ancestry, null, 'no ancestry header is sent');
     } finally {
       rmSync(home, { recursive: true, force: true });
       rmSync(project, { recursive: true, force: true });
