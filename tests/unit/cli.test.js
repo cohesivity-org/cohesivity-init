@@ -46,6 +46,21 @@ test('the plumbing denylist contains no harness names', () => {
   }
 });
 
+test('the model state dir is derived by truncating the name, not from a harness list', () => {
+  // The binary is cursor-agent but the dir is ~/.cursor; the script is
+  // pi-coding-agent but the dir is ~/.pi. Truncating at hyphens is a string
+  // rule over the measured name — naming harnesses here would defeat the point.
+  assert.match(cli, /n\.slice\(0, n\.lastIndexOf\('-'\)\)/, 'name truncated at hyphens');
+  assert.match(cli, /names\.flatMap/, 'every variant contributes roots');
+  const attribution = cli.slice(0, cli.indexOf('function skillDirs'));
+  for (const harness of ['cursor', 'claude', 'grok', 'codex', 'opencode', 'hermes']) {
+    assert.ok(
+      !new RegExp(`['"\`.]${harness}['"\`/]`).test(attribution),
+      `${harness} must not be named in the attribution path`,
+    );
+  }
+});
+
 test('the model read tries several candidates instead of only the newest file', () => {
   // A harness touches lock / session-env / file-history files alongside its
   // session log, so the most recently written file frequently carries no
