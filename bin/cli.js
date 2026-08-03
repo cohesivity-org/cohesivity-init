@@ -34,7 +34,7 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.3.1';
+const PKG_VERSION = '0.3.2';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 
 // Machine id: one per machine, stored outside any project. A project's
@@ -67,6 +67,10 @@ function inferHarness() {
     let argv, ppid;
     try {
       argv = readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').filter(Boolean);
+      // A process that rewrites its title (npm does) has no NUL separators
+      // left, so the whole command arrives as one element. Re-split it, or
+      // argv[0] is an entire command line rather than a program name.
+      if (argv.length === 1 && argv[0].includes(' ')) argv = argv[0].split(/\s+/);
       ppid = Number(readFileSync(`/proc/${pid}/stat`, 'utf8').split(') ').pop().split(' ')[1]);
     } catch {
       try {
