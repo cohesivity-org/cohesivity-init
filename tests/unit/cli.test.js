@@ -29,8 +29,29 @@ test('PKG_VERSION matches package.json version', () => {
     m[1],
     pkg.version,
     `bin/cli.js PKG_VERSION ${m[1]} != package.json ${pkg.version}. ` +
-      'The version rides in the User-Agent that /api/genesis records, so drift misattributes installs.',
+      'The banner names this version, so drift misreports what users are running.',
   );
+});
+
+// ── attribution: measured, never asked ───────────────────────────────────────
+
+test('the plumbing denylist contains no harness names', () => {
+  const m = cli.match(/const PLUMBING = new Set\(\[([^\]]+)\]\)/);
+  assert.ok(m, 'PLUMBING set not found');
+  for (const harness of ['claude', 'grok', 'codex', 'cursor', 'cursor-agent', 'opencode', 'hermes', 'pi', 'windsurf']) {
+    assert.ok(
+      !m[1].includes(`'${harness}'`),
+      `'${harness}' must never be denied — harnesses name themselves through the chain; the denylist is closed Unix plumbing only`,
+    );
+  }
+});
+
+test('the ancestry chain starts at the parent, never this process', () => {
+  // `node …/cli.js` inferring itself (or the npx shim) as the harness is the
+  // self-attribution bug this pins.
+  assert.match(cli, /pp\[String\(process\.pid\)\]/, 'chain must start from the parent pid');
+  assert.ok(cli.includes(`'npx-cli.js'`), 'the npx shim script is a generic segment');
+  assert.ok(cli.includes(`'npm-cli.js'`), 'the npm shim script is a generic segment');
 });
 
 test('the skill pin is a full immutable commit sha', () => {
@@ -52,10 +73,12 @@ const MACHINE_ID = 'mach_abc123def456ghi789jk.sIgNaTuRe';
 // the caller sent none — the real genesis contract.
 function withStubOrigin(fn) {
   const seen = [];
+  const reqs = [];
   const server = createServer((req, res) => {
     if (req.url === '/api/genesis' && req.method === 'POST') {
       const sent = req.headers['x-cohesivity-machine-id'] || null;
       seen.push(sent);
+      reqs.push({ ua: req.headers['user-agent'] || null, ancestry: req.headers['x-cohesivity-ancestry'] || null });
       const headers = { 'Content-Type': 'text/plain' };
       if (!sent) headers['X-Cohesivity-Machine-Id'] = MACHINE_ID;
       res.writeHead(201, headers);
@@ -67,7 +90,7 @@ function withStubOrigin(fn) {
   return new Promise((resolve, reject) => {
     server.listen(0, async () => {
       const base = `http://127.0.0.1:${server.address().port}`;
-      try { resolve(await fn(base, seen)); } catch (e) { reject(e); } finally {
+      try { resolve(await fn(base, seen, reqs)); } catch (e) { reject(e); } finally {
         // closeAllConnections is required: undici holds the connection
         // keep-alive open, and close() alone would wait on it forever.
         server.closeAllConnections();
@@ -94,6 +117,28 @@ async function runCli(base, home, project, extraArgs = []) {
   });
   return stdout;
 }
+
+test('genesis carries the measured UA shape and the raw ancestry chain', async () => {
+  await withStubOrigin(async (base, seen, reqs) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    try {
+      await runCli(base, home, project);
+      assert.equal(reqs.length, 1);
+      // COHESIVITY_RUNTIME=claude-web is the explicit override in runCli, and
+      // the throwaway HOME holds no session log, so the model half is "none".
+      assert.equal(reqs[0].ua, '{npx:claude-web, none}');
+      // The raw chain rides as a header. This test process tree always exists,
+      // so on any POSIX CI the header is present and plumbing-shaped.
+      assert.ok(reqs[0].ancestry, 'X-Cohesivity-Ancestry sent');
+      assert.match(reqs[0].ancestry, /node|npm/, 'chain names the real ancestors');
+      assert.ok(reqs[0].ancestry.length <= 800, 'capped');
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
 
 test('a machine with no id is issued one, and it lands outside the project', async () => {
   await withStubOrigin(async (base, seen) => {

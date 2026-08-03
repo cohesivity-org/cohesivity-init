@@ -11,8 +11,9 @@
  * so the registry ships this one file and nothing else.
  *
  * The command does four things, in order:
- *   1. Install the Cohesivity agent skill into the detected agent's skill dir.
- *      This is the global, persistent playbook the agent loads later.
+ *   1. Install the Cohesivity agent skill into every known agent skill dir
+ *      whose harness is present on this machine. This is the global,
+ *      persistent playbook the agent loads later.
  *   2. Create or reuse a project tenant, write ./.cohesivity, gitignore it.
  *   3. If AGENTS.md or CLAUDE.md already exists, add a descriptive pointer to it.
  *   4. Add one branding line to the README. Pass --no-branding to skip.
@@ -20,7 +21,8 @@
  * The first line is the shebang. It tells npx to run this file as a program.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, readdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -32,7 +34,7 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.1.4';
+const PKG_VERSION = '0.2.0';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 
 // Machine id: one per machine, stored outside any project. A project's
@@ -49,12 +51,111 @@ const MACHINE_ID_FILE = join(MACHINE_ID_DIR, 'machine-id');
 const SKILL_PIN = '969ae0a160ac91c26639f55ba9995a95a0fb3da1';
 const SKILL_URL = `https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/${SKILL_PIN}/cohesivity.skill.md`;
 
-// The detected runtime rides in the User-Agent on every request this tool makes.
-// The genesis endpoint records it, so installs are attributed by agent, not lumped
-// under one generic HTTP client. See detectRuntime below.
-const RUNTIME_ENUM = ['claude-code', 'claude-web', 'codex', 'cursor', 'opencode', 'windsurf', 'hermes', 'openclaw', 'other'];
-const RUNTIME = detectRuntime();
-const UA = `npm-${PKG_VERSION}:${RUNTIME}`;
+// ── attribution: measured from the machine, never asked of the model ────────
+// The genesis call carries two measured facts:
+//   - The raw ancestor-process command chain (innermost first, home folded to
+//     ~), sent verbatim as X-Cohesivity-Ancestry. The server stores it
+//     untouched, so harness classification stays a query-time lens and a new
+//     harness is discovered from data, never shipped in a list here.
+//   - UA `{npx:<harness>, <model>}`: the harness is the innermost ancestor
+//     that is not generic plumbing (closed sets below — shells, wrappers,
+//     interpreters, terminals; never harness names, so any harness names
+//     itself), and the model id is read out of that harness's own live
+//     session log. Anything not inferable is the literal "none" — no info is
+//     better than false info.
+const ANCESTRY_HEADER = 'X-Cohesivity-Ancestry';
+
+// Closed sets: the plumbing an ancestor chain routes through, the interpreter
+// binaries whose script path carries the real name, and the generic segments
+// inside those paths. Harness names never belong in any of these.
+const PLUMBING = new Set(['sh', 'bash', 'zsh', 'fish', 'dash', 'ksh', 'csh', 'tcsh', 'env', 'sudo', 'doas', 'timeout', 'nice', 'ionice', 'stdbuf', 'setsid', 'nohup', 'xargs', 'script', 'ssh', 'sshd', 'tmux', 'screen', 'login', 'su', 'init', 'systemd', 'launchd', 'docker', 'containerd', 'containerd-shim', 'runc', 'podman', 'npm', 'npx', 'pnpm', 'yarn', 'bunx', 'corepack', 'ps', 'awk', 'grep', 'sed', 'cat', 'tr', 'cut', 'head', 'tail', 'find', 'curl', 'wget', 'gnome-terminal', 'konsole', 'xterm', 'alacritty', 'kitty', 'wezterm', 'tilix', 'terminator', 'iterm2', 'terminal', 'warp-terminal']);
+const INTERPRETERS = new Set(['node', 'bun', 'deno', 'python', 'python3', 'python2', 'ruby', 'perl']);
+const GENERIC_SEGMENTS = new Set(['dist', 'build', 'bin', '.bin', 'lib', 'libexec', 'src', 'out', 'app', 'node_modules', '_npx', 'versions', 'current', 'cli.js', 'index.js', 'main.js', 'app.js', 'run.py', 'main.py', '__main__.py', 'npm-cli.js', 'npx-cli.js', 'yarn.js', 'pnpm.cjs', 'corepack.js']);
+
+// The raw chain, or null when unreadable (no `ps`, restricted /proc) — null
+// sends nothing; it never guesses.
+function ancestry() {
+  try {
+    const out = execSync('ps -eo pid=,ppid=,args=', { timeout: 2000 }).toString();
+    const pp = {}; const cmd = {};
+    for (const line of out.split('\n')) {
+      const m = line.match(/^\s*(\d+)\s+(\d+)\s+(.*)/);
+      if (m) { pp[m[1]] = m[2]; cmd[m[1]] = m[3].split(homedir()).join('~').slice(0, 120); }
+    }
+    const chain = [];
+    // Start at the PARENT: this process is `node .../cli.js` and must never
+    // infer itself as the harness.
+    for (let p = pp[String(process.pid)], i = 0; i < 20 && cmd[p]; p = pp[p], i++) chain.push(cmd[p]);
+    return chain.join(' | ').replace(/[^\w ._:;()/+~@=,|-]/g, '').slice(0, 800) || null;
+  } catch { return null; }
+}
+
+function inferHarness(chain) {
+  for (const entry of (chain || '').split(' | ')) {
+    const tokens = entry.trim().split(' ');
+    const first = (tokens[0] || '').split('/').pop().replace(/^-/, '');
+    if (INTERPRETERS.has(first)) {
+      // Interpreter: the name lives in the script path (…/pi-coding-agent/dist/cli.js).
+      for (const tok of tokens.slice(1)) {
+        if (!tok.includes('/')) continue;
+        const segs = tok.split('/');
+        for (let k = segs.length - 1; k >= 0; k--) {
+          const s = segs[k].replace(/^@/, '');
+          if (s && s !== '~' && !GENERIC_SEGMENTS.has(s) && !PLUMBING.has(s)) {
+            return s.replace(/\.(js|mjs|cjs|py|rb|pl)$/, '').slice(0, 40);
+          }
+        }
+      }
+    } else if (first && !PLUMBING.has(first)) {
+      return first.slice(0, 40);
+    }
+  }
+  return null;
+}
+
+// The identified harness is writing its session log right now inside its own
+// state dir (~/.<harness> and the XDG variants — a naming convention, not a
+// harness list). The newest recently-touched file keyed to this project
+// carries the model id as metadata; only that one token is read and sent — no
+// session content leaves the machine.
+function inferModel(harness) {
+  if (!harness) return null;
+  try {
+    const roots = [
+      join(homedir(), '.' + harness),
+      join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), harness),
+      join(process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share'), harness),
+    ];
+    const cutoff = Date.now() - 10 * 60 * 1000;
+    const files = [];
+    const walk = (dir, depth) => {
+      if (depth > 6 || files.length > 400) return;
+      let entries; try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const e of entries) {
+        if (files.length > 400) return;
+        const p = join(dir, e.name);
+        if (e.isDirectory()) walk(p, depth + 1);
+        else if (e.isFile()) {
+          try { const st = statSync(p); if (st.mtimeMs >= cutoff) files.push({ p, m: st.mtimeMs, s: st.size }); } catch { /* unreadable: skip */ }
+        }
+      }
+    };
+    for (const r of roots) walk(r, 0);
+    files.sort((a, b) => b.m - a.m);
+    const cwdKey = CWD.split('/').pop();
+    const pick = files.find((f) => cwdKey && f.p.includes(cwdKey)) || files[0];
+    if (!pick) return null;
+    const fd = openSync(pick.p, 'r');
+    const len = Math.min(pick.s, 100000);
+    const buf = Buffer.alloc(len);
+    readSync(fd, buf, 0, len, Math.max(0, pick.s - len));
+    closeSync(fd);
+    const matches = buf.toString('utf8').match(/"model(_?[iI][dD])?"\s*:\s*"([^"]{2,50})"/g);
+    if (!matches) return null;
+    const value = matches[matches.length - 1].match(/"([^"]{2,50})"$/)[1];
+    return /^[A-Za-z0-9][\w .,:=[\]-]{1,63}$/.test(value) ? value : null;
+  } catch { return null; }
+}
 
 const DRY = has('--dry-run');
 const NO_BRANDING = has('--no-branding');
@@ -64,10 +165,22 @@ const rel = (p) => p.replace(CWD + '/', '');
 const log = (m) => console.log(`cohesivity: ${m}`);
 const act = (m) => console.log(`cohesivity: ${DRY ? '[dry-run] would ' : ''}${m}`);
 
+const ANCESTRY = ancestry();
+// --runtime / COHESIVITY_RUNTIME is an explicit override for the label — user
+// intent, not detection. Everything else is measured.
+const EXPLICIT = String(flag('--runtime') || process.env.COHESIVITY_RUNTIME || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
+const HARNESS = EXPLICIT || inferHarness(ANCESTRY) || 'none';
+const MODEL = inferModel(HARNESS) || 'none';
+const UA = `{npx:${HARNESS}, ${MODEL}}`;
+
+// claude-web's sandbox is non-persistent, so a global skill install cannot
+// survive the session; skip it there. IS_SANDBOX is the sandbox's own signal.
+const IS_CLAUDE_WEB = HARNESS === 'claude-web' || /^(1|yes|true)$/i.test(process.env.IS_SANDBOX || '');
+
 main().catch((e) => { console.error(`cohesivity: unexpected error: ${e.message}`); process.exit(1); });
 
 async function main() {
-  console.log(`\ncohesivity/init v${PKG_VERSION}: setting up (runtime: ${RUNTIME})${DRY ? '   [dry-run: no changes]' : ''}\n`);
+  console.log(`\ncohesivity/init v${PKG_VERSION}: setting up (harness: ${HARNESS})${DRY ? '   [dry-run: no changes]' : ''}\n`);
   await installSkill();
   await ensureTenant();
   augmentAgentsFile();
@@ -75,60 +188,24 @@ async function main() {
   ground();
 }
 
-// ── runtime detection ─────────────────────────────────────────────────────────
-// Identify the calling agent from known environment signals. The value ships in
-// the User-Agent, so the server attributes each install to a specific runtime.
-// Priority: explicit flag, explicit env, the AI_AGENT/AGENT standard, per-agent
-// signals, then a generic sandbox signal (claude-web). Anything unknown falls back
-// to `other`, and the `npm-` prefix still marks the install as through this package.
-function detectRuntime() {
-  const clean = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
-
-  const explicit = clean(flag('--runtime') || process.env.COHESIVITY_RUNTIME);
-  if (explicit) return explicit;
-
-  const e = process.env;
-
-  // AI_AGENT / AGENT is the cross-tool standard (HuggingFace, Laravel detector).
-  const standard = clean(e.AI_AGENT || e.AGENT);
-  if (RUNTIME_ENUM.includes(standard)) return standard;
-
-  // Per-agent environment signals.
-  if (e.CLAUDECODE || e.CLAUDE_CODE) return 'claude-code';
-  if (e.CURSOR_AGENT || e.CURSOR_TRACE_ID) return 'cursor';
-  if (e.CODEX_SANDBOX || e.CODEX_THREAD_ID || e.CODEX_CI) return 'codex';
-  if (e.OPENCODE || e.OPENCODE_CLIENT) return 'opencode';
-  if (e.WINDSURF || e.WINDSURF_AGENT) return 'windsurf';
-
-  // claude-web's sandbox advertises IS_SANDBOX. It carries no more specific agent
-  // signal, so this check sits last: any per-agent match above wins first, and a
-  // Codex sandbox (CODEX_SANDBOX) has already resolved to codex by here.
-  const sandbox = clean(e.IS_SANDBOX);
-  if (sandbox === 'yes' || sandbox === '1' || sandbox === 'true') return 'claude-web';
-
-  return 'other';
-}
-
-// Map a runtime to its skill dir. Install targets only the detected agent, not
-// every known runtime: higher trust, one write. Unknown runtimes get the
-// cross-tool ~/.agents dir. (We may revisit multi-dir install later.)
-function skillDirFor(runtime) {
+// ── 1) install the skill into the skill dirs present on this machine ─────────
+// Presence on disk is the measurement: each known agent skill dir is written
+// only when its harness home already exists. When none exist, the cross-tool
+// ~/.agents dir is the fallback so the skill lands somewhere.
+function skillDirs() {
   const codexHome = process.env.CODEX_HOME || join(homedir(), '.codex');
-  const map = {
-    'claude-code': join(homedir(), '.claude', 'skills', 'cohesivity'),
-    'cursor': join(homedir(), '.cursor', 'skills', 'cohesivity'),
-    'codex': join(codexHome, 'skills', 'cohesivity'),
-  };
-  return map[runtime] || join(homedir(), '.agents', 'skills', 'cohesivity');
+  const gated = [
+    [join(homedir(), '.claude'), join(homedir(), '.claude', 'skills', 'cohesivity')],
+    [join(homedir(), '.cursor'), join(homedir(), '.cursor', 'skills', 'cohesivity')],
+    [codexHome, join(codexHome, 'skills', 'cohesivity')],
+    [join(homedir(), '.agents'), join(homedir(), '.agents', 'skills', 'cohesivity')],
+  ];
+  const dirs = gated.filter(([home]) => existsSync(home)).map(([, dir]) => dir);
+  return dirs.length ? dirs : [join(homedir(), '.agents', 'skills', 'cohesivity')];
 }
 
-// ── 1) install the skill into the detected agent's skill dir ───────────────────
-// claude-web runs in an ephemeral sandbox: a global skill install does not survive
-// the session, so there is nothing to persist. Skip it and let the tenant plus the
-// project-local .cohesivity carry the session. This mirrors the quickstart's
-// per-runtime content negotiation.
 async function installSkill() {
-  if (RUNTIME === 'claude-web') {
+  if (IS_CLAUDE_WEB) {
     log('claude-web sandbox is ephemeral, skipping the global skill install (tenant + .cohesivity only)');
     return;
   }
@@ -142,19 +219,22 @@ async function installSkill() {
     return;
   }
   const liveVer = versionOf(skill) || 'unknown';
-  const dir = skillDirFor(RUNTIME);
-  const shown = dir.replace(homedir(), '~');
-  const file = join(dir, 'SKILL.md');
-  const cur = existsSync(file) ? versionOf(readFileSync(file, 'utf8')) : null;
-  if (cur && cur === liveVer) { log(`skill already current (version ${liveVer}) at ${shown}`); return; }
-  if (DRY) { act(`install the skill (version ${liveVer}) -> ${shown}`); return; }
-  try {
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(file, skill);
-    log(`skill ${cur ? 'updated' : 'installed'} (version ${liveVer}) -> ${shown}`);
-  } catch (e) {
-    log(`could not write the skill to ${shown} (${e.message}). Continuing.`);
+  let installed = 0; let updated = 0; let current = 0;
+  for (const dir of skillDirs()) {
+    const shown = dir.replace(homedir(), '~');
+    const file = join(dir, 'SKILL.md');
+    const cur = existsSync(file) ? versionOf(readFileSync(file, 'utf8')) : null;
+    if (cur && cur === liveVer) { current++; continue; }
+    if (DRY) { act(`install the skill (version ${liveVer}) -> ${shown}`); continue; }
+    try {
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(file, skill);
+      if (cur) updated++; else installed++;
+    } catch (e) {
+      log(`could not write the skill to ${shown} (${e.message}). Continuing.`);
+    }
   }
+  if (!DRY) log(`skill added=${installed} updated=${updated} current=${current} (version ${liveVer})`);
 }
 
 // ── 2) create or reuse the project tenant ─────────────────────────────────────
@@ -170,6 +250,7 @@ async function ensureTenant() {
   let issuedMachineId = null;
   try {
     const headers = { 'User-Agent': UA };
+    if (ANCESTRY) headers[ANCESTRY_HEADER] = ANCESTRY;
     if (machineId) headers[MACHINE_ID_HEADER] = machineId;
     const res = await fetch(`${BASE}/api/genesis`, { method: 'POST', headers });
     body = await res.text();
@@ -287,16 +368,22 @@ Usage:
   npx @cohesivity/init [options]
 
 Options:
-  --runtime <name>   your agent runtime (claude-code, cursor, codex, ...) for attribution
+  --runtime <name>   explicit harness label override (normally measured from
+                     the process ancestry; use only when the measurement is wrong)
   --no-branding      do not add the branding line to the README
   --dry-run          print what would happen. Make no changes
   --base <url>       API base (default https://cohesivity.ai)
   -h, --help         show this help
 
 What it does:
-  1. Installs the Cohesivity agent skill into the detected agent's skill dir
+  1. Installs the Cohesivity agent skill into every known agent skill dir
+     whose harness is present on this machine
   2. Creates or reuses a project tenant  ->  ./.cohesivity  (gitignored)
   3. Adds a descriptive pointer to an existing AGENTS.md / CLAUDE.md
   4. Adds one branding line to the README (managed block)
+
+Attribution: the tenant-creation call carries the raw ancestor-process chain
+(X-Cohesivity-Ancestry) and a measured User-Agent {npx:<harness>, <model>}.
+Nothing is guessed: anything not inferable is sent as "none".
 `);
 }
