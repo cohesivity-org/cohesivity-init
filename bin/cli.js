@@ -34,7 +34,7 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.2.2';
+const PKG_VERSION = '0.2.3';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 
 // Machine id: one per machine, stored outside any project. A project's
@@ -163,18 +163,32 @@ function inferModel(harness) {
     };
     for (const r of roots) walk(r, 0);
     files.sort((a, b) => b.m - a.m);
+    // Try candidates in order until one yields a model. Testing only the
+    // newest file is not enough: a harness touches lock, session-env and
+    // file-history files alongside its session log, so the most recently
+    // written file frequently carries no model — and reporting "none" while
+    // the answer sits in the next file is a loss, not a safe default.
     const cwdKey = CWD.split('/').pop();
-    const pick = files.find((f) => cwdKey && f.p.includes(cwdKey)) || files[0];
-    if (!pick) return null;
-    const fd = openSync(pick.p, 'r');
-    const len = Math.min(pick.s, 100000);
-    const buf = Buffer.alloc(len);
-    readSync(fd, buf, 0, len, Math.max(0, pick.s - len));
-    closeSync(fd);
-    const matches = buf.toString('utf8').match(/"model(_?[iI][dD])?"\s*:\s*"([^"]{2,50})"/g);
-    if (!matches) return null;
-    const value = matches[matches.length - 1].match(/"([^"]{2,50})"$/)[1];
-    return /^[A-Za-z0-9][\w .,:=[\]-]{1,63}$/.test(value) ? value : null;
+    const ordered = [
+      ...files.filter((f) => cwdKey && f.p.includes(cwdKey)),
+      ...files,
+    ].slice(0, 20);
+    for (const pick of ordered) {
+      let text;
+      try {
+        const fd = openSync(pick.p, 'r');
+        const len = Math.min(pick.s, 100000);
+        const buf = Buffer.alloc(len);
+        readSync(fd, buf, 0, len, Math.max(0, pick.s - len));
+        closeSync(fd);
+        text = buf.toString('utf8');
+      } catch { continue; }
+      const matches = text.match(/"model(_?[iI][dD])?"\s*:\s*"([^"]{2,50})"/g);
+      if (!matches) continue;
+      const value = matches[matches.length - 1].match(/"([^"]{2,50})"$/)[1];
+      if (/^[A-Za-z0-9][\w .,:=[\]-]{1,63}$/.test(value)) return value;
+    }
+    return null;
   } catch { return null; }
 }
 
