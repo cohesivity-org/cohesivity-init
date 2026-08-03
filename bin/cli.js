@@ -21,7 +21,7 @@
  * The first line is the shebang. It tells npx to run this file as a program.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, readdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -34,7 +34,7 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.2.4';
+const PKG_VERSION = '0.3.0';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 
 // Machine id: one per machine, stored outside any project. A project's
@@ -134,71 +134,6 @@ function inferHarness(chain) {
   return null;
 }
 
-// The identified harness is writing its session log right now inside its own
-// state dir (~/.<harness> and the XDG variants — a naming convention, not a
-// harness list). The newest recently-touched file keyed to this project
-// carries the model id as metadata; only that one token is read and sent — no
-// session content leaves the machine.
-function inferModel(harness) {
-  if (!harness) return null;
-  try {
-    // A harness's state dir is not always named exactly like its process: the
-    // binary is cursor-agent but the dir is ~/.cursor, the script is
-    // pi-coding-agent but the dir is ~/.pi. So the measured name is also tried
-    // truncated at each hyphen — a general string rule over the name, not a
-    // list of harnesses. Nonexistent paths cost nothing; the walk skips them.
-    const names = [];
-    for (let n = harness; n; n = n.includes('-') ? n.slice(0, n.lastIndexOf('-')) : '') {
-      if (!names.includes(n)) names.push(n);
-    }
-    const cfgHome = process.env.XDG_CONFIG_HOME || join(homedir(), '.config');
-    const dataHome = process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share');
-    const roots = names.flatMap((n) => [join(homedir(), '.' + n), join(cfgHome, n), join(dataHome, n)]);
-    const cutoff = Date.now() - 10 * 60 * 1000;
-    const files = [];
-    const walk = (dir, depth) => {
-      if (depth > 6 || files.length > 400) return;
-      let entries; try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
-      for (const e of entries) {
-        if (files.length > 400) return;
-        const p = join(dir, e.name);
-        if (e.isDirectory()) walk(p, depth + 1);
-        else if (e.isFile()) {
-          try { const st = statSync(p); if (st.mtimeMs >= cutoff) files.push({ p, m: st.mtimeMs, s: st.size }); } catch { /* unreadable: skip */ }
-        }
-      }
-    };
-    for (const r of roots) walk(r, 0);
-    files.sort((a, b) => b.m - a.m);
-    // Try candidates in order until one yields a model. Testing only the
-    // newest file is not enough: a harness touches lock, session-env and
-    // file-history files alongside its session log, so the most recently
-    // written file frequently carries no model — and reporting "none" while
-    // the answer sits in the next file is a loss, not a safe default.
-    const cwdKey = CWD.split('/').pop();
-    const ordered = [
-      ...files.filter((f) => cwdKey && f.p.includes(cwdKey)),
-      ...files,
-    ].slice(0, 20);
-    for (const pick of ordered) {
-      let text;
-      try {
-        const fd = openSync(pick.p, 'r');
-        const len = Math.min(pick.s, 100000);
-        const buf = Buffer.alloc(len);
-        readSync(fd, buf, 0, len, Math.max(0, pick.s - len));
-        closeSync(fd);
-        text = buf.toString('utf8');
-      } catch { continue; }
-      const matches = text.match(/"model(_?[iI][dD])?"\s*:\s*"([^"]{2,50})"/g);
-      if (!matches) continue;
-      const value = matches[matches.length - 1].match(/"([^"]{2,50})"$/)[1];
-      if (/^[A-Za-z0-9][\w .,:=[\]-]{1,63}$/.test(value)) return value;
-    }
-    return null;
-  } catch { return null; }
-}
-
 const DRY = has('--dry-run');
 const NO_BRANDING = has('--no-branding');
 
@@ -212,8 +147,7 @@ const ANCESTRY = ancestry();
 // intent, not detection. Everything else is measured.
 const EXPLICIT = String(flag('--runtime') || process.env.COHESIVITY_RUNTIME || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
 const HARNESS = EXPLICIT || inferHarness(ANCESTRY) || 'none';
-const MODEL = inferModel(HARNESS) || 'none';
-const UA = `{npx:${HARNESS}, ${MODEL}}`;
+const UA = `{npx:${HARNESS}}`;
 
 // claude-web's sandbox is non-persistent, so a global skill install cannot
 // survive the session; skip it there. IS_SANDBOX is the sandbox's own signal.
