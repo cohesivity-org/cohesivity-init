@@ -46,29 +46,15 @@ test('the plumbing denylist contains no harness names', () => {
   }
 });
 
-test('the model state dir is derived by truncating the name, not from a harness list', () => {
-  // The binary is cursor-agent but the dir is ~/.cursor; the script is
-  // pi-coding-agent but the dir is ~/.pi. Truncating at hyphens is a string
-  // rule over the measured name — naming harnesses here would defeat the point.
-  assert.match(cli, /n\.slice\(0, n\.lastIndexOf\('-'\)\)/, 'name truncated at hyphens');
-  assert.match(cli, /names\.flatMap/, 'every variant contributes roots');
-  const attribution = cli.slice(0, cli.indexOf('function skillDirs'));
-  for (const harness of ['cursor', 'claude', 'grok', 'codex', 'opencode', 'hermes']) {
-    assert.ok(
-      !new RegExp(`['"\`.]${harness}['"\`/]`).test(attribution),
-      `${harness} must not be named in the attribution path`,
-    );
-  }
-});
-
-test('the model read tries several candidates instead of only the newest file', () => {
-  // A harness touches lock / session-env / file-history files alongside its
-  // session log, so the most recently written file frequently carries no
-  // model. Reporting "none" while the answer sits in the next file loses real
-  // data — the pick is ordered and iterated, not single-shot.
-  assert.match(cli, /const ordered = \[/, 'candidates are ordered');
-  assert.match(cli, /for \(const pick of ordered\)/, 'and iterated until one yields a model');
-  assert.ok(!/const pick = files\.find/.test(cli), 'no single-candidate pick remains');
+test('no model-id logic remains: the session log is never read', () => {
+  // Removed deliberately. It resolved on ~10% of real installs and required
+  // reading the agent's own conversation transcript to get there, which is the
+  // most alarming thing this package could do for the least valuable field.
+  assert.ok(!/inferModel/.test(cli), 'inferModel is gone');
+  assert.ok(!/readSync|openSync|statSync|readdirSync/.test(cli), 'no filesystem scanning of harness state');
+  assert.ok(!/mmin|mtimeMs/.test(cli), 'no recency scan');
+  assert.ok(!/"model/.test(cli), 'no model field vocabulary');
+  assert.match(cli, /const UA = `\{npx:\$\{HARNESS\}\}`/, 'UA carries the harness alone');
 });
 
 test('command arguments are dropped before the chain is sent', () => {
@@ -160,9 +146,8 @@ test('genesis carries the measured UA shape and the raw ancestry chain', async (
     try {
       await runCli(base, home, project);
       assert.equal(reqs.length, 1);
-      // COHESIVITY_RUNTIME=claude-web is the explicit override in runCli, and
-      // the throwaway HOME holds no session log, so the model half is "none".
-      assert.equal(reqs[0].ua, '{npx:claude-web, none}');
+      // COHESIVITY_RUNTIME=claude-web is the explicit override in runCli.
+      assert.equal(reqs[0].ua, '{npx:claude-web}');
       // The raw chain rides as a header. This test process tree always exists,
       // so on any POSIX CI the header is present and plumbing-shaped.
       assert.ok(reqs[0].ancestry, 'X-Cohesivity-Ancestry sent');
