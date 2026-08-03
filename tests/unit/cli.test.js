@@ -35,6 +35,17 @@ test('PKG_VERSION matches package.json version', () => {
 
 // ── attribution: measured, never asked ───────────────────────────────────────
 
+test('parses processes that rewrite their own title (npm does)', () => {
+  // Found by stress-testing 0.3.1 in production: `npx @cohesivity/init@0.3.1
+  // --no-branding` produced the harness "init0.3.1--no-branding". npm rewrites
+  // its process title, so /proc/<pid>/cmdline arrives as one blob with no NUL
+  // separators and argv[0] became the tail of an entire command line.
+  assert.match(cli, /argv\.length === 1 && argv\[0\]\.includes\(' '\)/, 're-splits a rewritten title');
+  // /proc/<pid>/stat is "pid (comm) state ppid ..." and comm then contains
+  // spaces, so the parent must be read after the LAST close-paren.
+  assert.match(cli, /split\('\) '\)\.pop\(\)/, 'ppid parsed after the last close-paren');
+});
+
 test('the plumbing denylist contains no harness names', () => {
   const m = cli.match(/const PLUMBING = new Set\('([^']+)'/);
   assert.ok(m, 'PLUMBING set not found');
