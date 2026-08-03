@@ -34,7 +34,7 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.2.1';
+const PKG_VERSION = '0.2.2';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 
 // Machine id: one per machine, stored outside any project. A project's
@@ -68,7 +68,7 @@ const ANCESTRY_HEADER = 'X-Cohesivity-Ancestry';
 // Closed sets: the plumbing an ancestor chain routes through, the interpreter
 // binaries whose script path carries the real name, and the generic segments
 // inside those paths. Harness names never belong in any of these.
-const PLUMBING = new Set(['sh', 'bash', 'zsh', 'fish', 'dash', 'ksh', 'csh', 'tcsh', 'env', 'sudo', 'doas', 'timeout', 'nice', 'ionice', 'stdbuf', 'setsid', 'nohup', 'xargs', 'script', 'ssh', 'sshd', 'tmux', 'screen', 'login', 'su', 'init', 'systemd', 'launchd', 'docker', 'containerd', 'containerd-shim', 'runc', 'podman', 'npm', 'npx', 'pnpm', 'yarn', 'bunx', 'corepack', 'ps', 'awk', 'grep', 'sed', 'cat', 'tr', 'cut', 'head', 'tail', 'find', 'curl', 'wget', 'gnome-terminal', 'konsole', 'xterm', 'alacritty', 'kitty', 'wezterm', 'tilix', 'terminator', 'iterm2', 'terminal', 'warp-terminal']);
+const PLUMBING = new Set(['sh', 'bash', 'zsh', 'fish', 'dash', 'ksh', 'csh', 'tcsh', 'env', 'sudo', 'doas', 'timeout', 'timelimit', 'nice', 'ionice', 'stdbuf', 'setsid', 'nohup', 'xargs', 'script', 'ssh', 'sshd', 'tmux', 'screen', 'login', 'su', 'init', 'systemd', 'launchd', 'docker', 'containerd', 'containerd-shim', 'runc', 'podman', 'npm', 'npx', 'pnpm', 'yarn', 'bunx', 'corepack', 'ps', 'awk', 'grep', 'sed', 'cat', 'tr', 'cut', 'head', 'tail', 'find', 'curl', 'wget', 'gnome-terminal', 'konsole', 'xterm', 'alacritty', 'kitty', 'wezterm', 'tilix', 'terminator', 'iterm2', 'terminal', 'warp-terminal']);
 const INTERPRETERS = new Set(['node', 'bun', 'deno', 'python', 'python3', 'python2', 'ruby', 'perl']);
 const GENERIC_SEGMENTS = new Set(['dist', 'build', 'bin', '.bin', 'lib', 'libexec', 'src', 'out', 'app', 'node_modules', '_npx', 'versions', 'current', 'cli.js', 'index.js', 'main.js', 'app.js', 'run.py', 'main.py', '__main__.py', 'npm-cli.js', 'npx-cli.js', 'yarn.js', 'pnpm.cjs', 'corepack.js']);
 
@@ -85,9 +85,30 @@ function ancestry() {
     const chain = [];
     // Start at the PARENT: this process is `node .../cli.js` and must never
     // infer itself as the harness.
-    for (let p = pp[String(process.pid)], i = 0; i < 20 && cmd[p]; p = pp[p], i++) chain.push(cmd[p]);
-    return chain.join(' | ').replace(/[^\w ._:;()/+~@=,|-]/g, '').slice(0, 800) || null;
+    for (let p = pp[String(process.pid)], i = 0; i < 20 && cmd[p]; p = pp[p], i++) chain.push(reduceEntry(cmd[p]));
+    return chain.filter(Boolean).join(' | ').replace(/[^\w ._:;()/+~@,|-]/g, '').slice(0, 800) || null;
   } catch { return null; }
+}
+
+// Keep the program that ran; drop its arguments before anything is sent.
+//
+// Arguments are pure liability and identify nothing. A real caller's chain
+// reached the server carrying live AWS credentials, because its parent was
+// `sh -c export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...`; agent
+// invocations put the user's prompt on the command line the same way. argv[0]
+// names the harness, and for an interpreter the script path does, so one
+// path-like argument that is neither a URL nor a k=v assignment survives.
+function reduceEntry(entry) {
+  const tokens = String(entry).trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return '';
+  const prog = tokens[0];
+  const base = prog.split('/').pop().replace(/^-/, '');
+  if (!INTERPRETERS.has(base)) return prog;
+  for (const tok of tokens.slice(1)) {
+    if (tok.includes('=') || tok.includes('://')) continue;
+    if (tok.includes('/')) return `${prog} ${tok}`;
+  }
+  return prog;
 }
 
 function inferHarness(chain) {

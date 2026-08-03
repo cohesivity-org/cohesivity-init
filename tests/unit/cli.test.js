@@ -46,6 +46,16 @@ test('the plumbing denylist contains no harness names', () => {
   }
 });
 
+test('command arguments are dropped before the chain is sent', () => {
+  // A real caller's chain reached the server carrying live AWS credentials,
+  // because its parent was `sh -c export AWS_ACCESS_KEY_ID=… …`. Arguments
+  // also carry --token flags and, on agent invocations, the user's prompt.
+  // argv[0] identifies the harness; arguments are pure liability.
+  assert.match(cli, /function reduceEntry/, 'entries are reduced before transmission');
+  assert.match(cli, /chain\.push\(reduceEntry\(/, 'the reduction is applied while walking the chain');
+  assert.ok(!/\[\^\\w \._:;\(\)\/\+~@=,\|-\]/.test(cli), '= is no longer a transmitted character');
+});
+
 test('the ancestry chain starts at the parent, never this process', () => {
   // `node …/cli.js` inferring itself (or the npx shim) as the harness is the
   // self-attribution bug this pins.
