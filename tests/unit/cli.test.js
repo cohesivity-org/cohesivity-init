@@ -46,6 +46,16 @@ test('the plumbing denylist contains no harness names', () => {
   }
 });
 
+test('the model read tries several candidates instead of only the newest file', () => {
+  // A harness touches lock / session-env / file-history files alongside its
+  // session log, so the most recently written file frequently carries no
+  // model. Reporting "none" while the answer sits in the next file loses real
+  // data — the pick is ordered and iterated, not single-shot.
+  assert.match(cli, /const ordered = \[/, 'candidates are ordered');
+  assert.match(cli, /for \(const pick of ordered\)/, 'and iterated until one yields a model');
+  assert.ok(!/const pick = files\.find/.test(cli), 'no single-candidate pick remains');
+});
+
 test('command arguments are dropped before the chain is sent', () => {
   // A real caller's chain reached the server carrying live AWS credentials,
   // because its parent was `sh -c export AWS_ACCESS_KEY_ID=… …`. Arguments
