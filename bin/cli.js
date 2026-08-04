@@ -37,7 +37,7 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.4.0';
+const PKG_VERSION = '0.4.1';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 
 // Machine id: one per machine, stored outside any project. A project's
@@ -282,7 +282,8 @@ function ground() {
   log(tid ? `ready. tenant ${tid}` : 'ready');
   console.log(`  - Keys are in .cohesivity (gitignored, do not commit).`);
   console.log(`  - Provision a service: POST ${BASE}/api/resources/<name>  (Authorization: Bearer <coh_management_key>)`);
-  console.log(`  - Docs: ${BASE}/llms.txt`);
+  console.log(`  - Per-service docs: ${BASE}/offerings/<name>   \u00b7   full reference: ${BASE}/llms.txt`);
+  console.log('  - The skill is set up for future sessions. Claude Code auto-loads it if ~/.claude/skills already existed, otherwise restart; Cursor and Codex pick it up on reload/restart.');
 }
 
 function versionOf(md) { return (md.match(/^version:\s*(.+)$/m) || [])[1]?.trim() || null; }
