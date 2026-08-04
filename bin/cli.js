@@ -34,7 +34,7 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.3.5';
+const PKG_VERSION = '0.3.6';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 
 // Machine id: one per machine, stored outside any project. A project's
@@ -67,10 +67,9 @@ function inferHarness() {
   let pid = process.ppid;
   // `pid >= 1`, not `pid > 1`: pid 1 must be EXAMINED, not merely used as the
   // stop condition. On a normal machine pid 1 is init/systemd and the denylist
-  // rejects it anyway, but inside a microVM sandbox pid 1 IS the supervising
-  // harness — Claude web runs `/process_api --firecracker-init` there and
-  // spawns each command directly from it, so skipping pid 1 made every such
-  // sandbox report "none". Pid 1 reports parent 0, so the walk still ends.
+  // rejects it anyway, but under a microVM or container entrypoint pid 1 IS
+  // the supervising process that spawned this command, so skipping it left
+  // those environments with no name. Pid 1 reports parent 0, so the walk ends.
   for (let i = 0; i < 20 && pid >= 1; i++) {
     let argv, ppid;
     try {
@@ -114,10 +113,6 @@ const EXPLICIT = String(flag('--runtime') || process.env.COHESIVITY_RUNTIME || '
 const HARNESS = EXPLICIT || inferHarness() || 'none';
 const UA = `{npx:${HARNESS}}`;
 
-// claude-web's sandbox is non-persistent, so a global skill install cannot
-// survive the session; skip it there. IS_SANDBOX is the sandbox's own signal.
-const IS_CLAUDE_WEB = HARNESS === 'claude-web' || /^(1|yes|true)$/i.test(process.env.IS_SANDBOX || '');
-
 main().catch((e) => { console.error(`cohesivity: unexpected error: ${e.message}`); process.exit(1); });
 
 async function main() {
@@ -146,10 +141,6 @@ function skillDirs() {
 }
 
 async function installSkill() {
-  if (IS_CLAUDE_WEB) {
-    log('claude-web sandbox is ephemeral, skipping the global skill install (tenant + .cohesivity only)');
-    return;
-  }
   let skill;
   try {
     const res = await fetch(SKILL_URL, { headers: { 'User-Agent': UA } });
