@@ -65,7 +65,13 @@ const GENERIC = new Set('cli index main app run dist build bin lib libexec src o
 
 function inferHarness() {
   let pid = process.ppid;
-  for (let i = 0; i < 20 && pid > 1; i++) {
+  // `pid >= 1`, not `pid > 1`: pid 1 must be EXAMINED, not merely used as the
+  // stop condition. On a normal machine pid 1 is init/systemd and the denylist
+  // rejects it anyway, but inside a microVM sandbox pid 1 IS the supervising
+  // harness — Claude web runs `/process_api --firecracker-init` there and
+  // spawns each command directly from it, so skipping pid 1 made every such
+  // sandbox report "none". Pid 1 reports parent 0, so the walk still ends.
+  for (let i = 0; i < 20 && pid >= 1; i++) {
     let argv, ppid;
     try {
       argv = readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').filter(Boolean);

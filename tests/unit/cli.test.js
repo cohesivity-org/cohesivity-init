@@ -46,6 +46,21 @@ test('parses processes that rewrite their own title (npm does)', () => {
   assert.match(cli, /split\('\) '\)\.pop\(\)/, 'ppid parsed after the last close-paren');
 });
 
+test('pid 1 is examined, not used as the stop condition', () => {
+  // Regression: the guard was `pid > 1`, so a process whose parent IS pid 1
+  // never entered the loop and reported "none" — every microVM and container
+  // entrypoint environment. Strictly additive: the walk breaks at the first
+  // non-plumbing ancestor, so pid 1 is only reached by a chain already
+  // returning "none", and on an ordinary machine pid 1 is init/systemd, which
+  // the denylist rejects.
+  assert.match(cli, /pid >= 1/, 'pid 1 is examined');
+  assert.ok(!/&& pid > 1/.test(cli), 'the old guard skipped pid 1 entirely');
+  const m = cli.match(/const PLUMBING = new Set\('([^']+)'/);
+  for (const p1 of ['init', 'systemd', 'launchd']) {
+    assert.ok(m[1].split(' ').includes(p1), `${p1} must stay denied so ordinary machines are unaffected`);
+  }
+});
+
 test('the plumbing denylist contains no harness names', () => {
   const m = cli.match(/const PLUMBING = new Set\('([^']+)'/);
   assert.ok(m, 'PLUMBING set not found');
