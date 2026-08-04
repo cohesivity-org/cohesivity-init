@@ -98,9 +98,18 @@ test('the skill pin is a full immutable commit sha', () => {
 // ── machine id ────────────────────────────────────────────────────────────────
 
 const MACHINE_ID = 'mach_abc123def456ghi789jk.sIgNaTuRe';
+// What the origin issues in place of an id it cannot verify.
+const REPLACEMENT_ID = 'mach_zyx987wvu654tsr321qp.rEpLaCeMeNt';
+const ISSUED_IDS = new Set([MACHINE_ID, REPLACEMENT_ID]);
 
-// Stub origin recording what the CLI sent. Echoes a machine id header only when
-// the caller sent none — the real genesis contract.
+// Stub origin recording what the CLI sent. It echoes the header on any request
+// where it MINTS an id — when the caller sent none, and when the caller sent
+// one that does not verify. That is the real contract (`resolveMachineId` in
+// worker/src/machine-id.js: verify, else mint, and echo only what was minted).
+//
+// Modelling it as "echo only when the caller sent none" is what hid the bug
+// this suite now covers: the client could not be caught dropping a replacement
+// because the stub never issued one.
 function withStubOrigin(fn) {
   const seen = [];
   const reqs = [];
@@ -111,6 +120,7 @@ function withStubOrigin(fn) {
       reqs.push({ ua: req.headers['user-agent'] || null, ancestry: req.headers['x-cohesivity-ancestry'] || null });
       const headers = { 'Content-Type': 'text/plain' };
       if (!sent) headers['X-Cohesivity-Machine-Id'] = MACHINE_ID;
+      else if (!ISSUED_IDS.has(sent)) headers['X-Cohesivity-Machine-Id'] = REPLACEMENT_ID;
       res.writeHead(201, headers);
       res.end('tenant_id=brave-otter-runs\ncoh_management_key=coh_man_t\ncoh_application_key=coh_app_t\n');
       return;
@@ -228,6 +238,59 @@ test('a garbage machine-id file is ignored rather than sent', async () => {
     } finally {
       rmSync(home, { recursive: true, force: true });
       rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('a machine whose id no longer verifies adopts the replacement it is issued', async () => {
+  // The recovery path: the origin rotated MACHINE_ID_HMAC_SECRET, or the file
+  // was corrupted into something still well-shaped. The id reads back fine and
+  // is sent, the origin cannot verify it and mints a replacement. Dropping that
+  // replacement re-mints on every genesis forever and turns each project into
+  // its own machine row, which is precisely what the id exists to prevent.
+  await withStubOrigin(async (base, seen) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const root = mkdtempSync(join(tmpdir(), 'coh-proj-'));
+    const stale = 'mach_staleaaaabbbbccccdd.dEaDsIgNaTuRe';
+    try {
+      mkdirSync(join(home, '.config', 'cohesivity'), { recursive: true });
+      writeFileSync(join(home, '.config', 'cohesivity', 'machine-id'), `${stale}\n`);
+      await runCli(base, home, join(root, 'one'));
+      await runCli(base, home, join(root, 'two'));
+      await runCli(base, home, join(root, 'three'));
+      // Sent once, replaced, then the replacement is what rides every later run.
+      assert.deepEqual(seen, [stale, REPLACEMENT_ID, REPLACEMENT_ID]);
+      assert.equal(
+        readFileSync(join(home, '.config', 'cohesivity', 'machine-id'), 'utf8').trim(),
+        REPLACEMENT_ID,
+        'the replacement is persisted, not discarded',
+      );
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+test('a healthy id is never rewritten', async () => {
+  // The other half: once an id verifies the origin echoes nothing, so the file
+  // must be left exactly as it is.
+  await withStubOrigin(async (base, seen) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const root = mkdtempSync(join(tmpdir(), 'coh-proj-'));
+    try {
+      mkdirSync(join(home, '.config', 'cohesivity'), { recursive: true });
+      writeFileSync(join(home, '.config', 'cohesivity', 'machine-id'), `${MACHINE_ID}\n`);
+      await runCli(base, home, join(root, 'one'));
+      await runCli(base, home, join(root, 'two'));
+      assert.deepEqual(seen, [MACHINE_ID, MACHINE_ID]);
+      assert.equal(
+        readFileSync(join(home, '.config', 'cohesivity', 'machine-id'), 'utf8').trim(),
+        MACHINE_ID,
+      );
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(root, { recursive: true, force: true });
     }
   });
 });

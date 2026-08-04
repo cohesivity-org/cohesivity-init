@@ -34,14 +34,16 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.3.2';
+const PKG_VERSION = '0.3.3';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 
 // Machine id: one per machine, stored outside any project. A project's
 // .cohesivity is per project, so a machine that runs setup in several projects
 // owns several tenants; this is what tells the server they came from one setup
 // rather than several unrelated people. Sent on genesis; the server issues one
-// only when we send none, so it is written exactly once and reused thereafter.
+// whenever it cannot verify what we sent — none at all, or an id gone stale
+// because the signing secret rotated or the file was corrupted — and whatever
+// it issues replaces what is on disk. Steady state is written once and reused.
 const MACHINE_ID_HEADER = 'X-Cohesivity-Machine-Id';
 const MACHINE_ID_DIR = join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'cohesivity');
 const MACHINE_ID_FILE = join(MACHINE_ID_DIR, 'machine-id');
@@ -186,8 +188,10 @@ async function ensureTenant() {
     if (machineId) headers[MACHINE_ID_HEADER] = machineId;
     const res = await fetch(`${BASE}/api/genesis`, { method: 'POST', headers });
     body = await res.text();
-    // Only ever returned on the request that minted it, so this is non-null
-    // exactly when we sent none.
+    // Returned on any request that MINTED an id, which is when we sent none
+    // *or* when the id we sent no longer verifies (secret rotated, file
+    // corrupted). It is not "non-null exactly when we sent none" — assuming
+    // that is what left a machine pinned to a dead id forever.
     issuedMachineId = res.headers.get(MACHINE_ID_HEADER);
   } catch (e) {
     log(`no tenant created (network: ${e.message}). Re-run to retry. The command is idempotent.`);
@@ -199,7 +203,11 @@ async function ensureTenant() {
   }
   writeFileSync(dotfile, body);
   ensureGitignore();
-  if (!machineId && issuedMachineId) writeMachineId(issuedMachineId);
+  // Store whatever the server issued. Its presence already means "we minted
+  // this for you", so gating on `!machineId` as well dropped every replacement
+  // a machine with a stale id was handed: it re-minted on every genesis, kept
+  // none of them, and each project became its own machine row.
+  if (issuedMachineId) writeMachineId(issuedMachineId);
   log('created an ephemeral tenant -> ./.cohesivity');
 }
 
