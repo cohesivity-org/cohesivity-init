@@ -1,6 +1,6 @@
 {
   "name": "@cohesivity/init",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Set up Cohesivity in a project: install the agent skill, create a managed backend tenant, write the project config. Run with `npx @cohesivity/init`.",
   "type": "module",
   "bin": {
