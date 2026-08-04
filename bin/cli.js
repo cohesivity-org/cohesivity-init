@@ -10,13 +10,16 @@
  * Zero dependencies. Node 18+ provides global `fetch` and the `node:` builtins,
  * so the registry ships this one file and nothing else.
  *
- * The command does four things, in order:
+ * The command does three things, in order:
  *   1. Install the Cohesivity agent skill into every known agent skill dir
  *      whose harness is present on this machine. This is the global,
  *      persistent playbook the agent loads later.
  *   2. Create or reuse a project tenant, write ./.cohesivity, gitignore it.
  *   3. If AGENTS.md or CLAUDE.md already exists, add a descriptive pointer to it.
- *   4. Add one branding line to the README. Pass --no-branding to skip.
+ *
+ * It writes nothing else. It does not add anything to your README: an installer
+ * putting promotional text in someone's repo is an edit they did not ask for,
+ * and it forced every careful agent to stop and request permission mid-setup.
  *
  * The first line is the shebang. It tells npx to run this file as a program.
  */
@@ -34,7 +37,7 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.3.6';
+const PKG_VERSION = '0.4.0';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 
 // Machine id: one per machine, stored outside any project. A project's
@@ -100,7 +103,6 @@ function inferHarness() {
 }
 
 const DRY = has('--dry-run');
-const NO_BRANDING = has('--no-branding');
 
 const CWD = process.cwd();
 const rel = (p) => p.replace(CWD + '/', '');
@@ -120,7 +122,6 @@ async function main() {
   await installSkill();
   await ensureTenant();
   augmentAgentsFile();
-  augmentReadme();
   ground();
 }
 
@@ -261,17 +262,6 @@ function augmentAgentsFile() {
   }
 }
 
-// ── 4) one branding line at the end of the README (the human-facing channel) ──
-function augmentReadme() {
-  if (NO_BRANDING) return;
-  const readme = ['README.md', 'readme.md', 'Readme.md'].map((f) => join(CWD, f)).find(existsSync);
-  if (!readme) return;
-  const line = 'Backend powered by [Cohesivity](https://cohesivity.ai).';
-  if (DRY) { act(`add a branding line to ${rel(readme)}`); return; }
-  upsertManagedBlock(readme, line);
-  log(`updated ${rel(readme)}`);
-}
-
 // Idempotent managed block: update in place if present, else append. This copies
 // the Vercel `<!-- BEGIN:... -->` convention, so re-runs never duplicate content.
 const BEGIN = '<!-- BEGIN:cohesivity -->';
@@ -307,7 +297,6 @@ Usage:
 Options:
   --runtime <name>   explicit harness label override (normally measured from
                      the process ancestry; use only when the measurement is wrong)
-  --no-branding      do not add the branding line to the README
   --dry-run          print what would happen. Make no changes
   --base <url>       API base (default https://cohesivity.ai)
   -h, --help         show this help
@@ -317,7 +306,6 @@ What it does:
      whose harness is present on this machine
   2. Creates or reuses a project tenant  ->  ./.cohesivity  (gitignored)
   3. Adds a descriptive pointer to an existing AGENTS.md / CLAUDE.md
-  4. Adds one branding line to the README (managed block)
 
 Attribution: the tenant-creation call carries a User-Agent of the shape
 {npx:<harness>}, where the harness is measured from this process's own
