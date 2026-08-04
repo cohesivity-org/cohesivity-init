@@ -61,6 +61,31 @@ test('pid 1 is examined, not used as the stop condition', () => {
   }
 });
 
+test('nothing in the package is specific to any vendor or sandbox', () => {
+  // A reviewing agent read all 336 lines before running this and called out
+  // "hardcoded knowledge of specific sandboxes" — fairly: the package carried
+  // an IS_CLAUDE_WEB branch, an IS_SANDBOX check, and a comment naming one
+  // vendor's microVM supervisor. The detection was already generic; those made
+  // it look targeted, which is its own cost when the reader decides whether to
+  // execute the thing.
+  for (const s of ['claude-web', 'firecracker', 'process_api', 'IS_SANDBOX', 'IS_CLAUDE_WEB']) {
+    assert.ok(!cli.includes(s), `${s} must not appear — detection is generic and should read that way`);
+  }
+});
+
+test('the README describes what the code actually does', () => {
+  // 0.3.5 shipped a README claiming the package sends the raw ancestor-process
+  // chain and reads the model out of the agent's session log. Both had been
+  // removed (0.3.1 and 0.3.0). A reader auditing before running saw a wider
+  // footprint than the code has, which is the worst direction for that error.
+  const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
+  assert.ok(!/model id is read from/i.test(readme), 'no claim of reading a model from a session log');
+  assert.ok(!/raw ancestor-process command chain/i.test(readme), 'no claim of sending a chain');
+  assert.ok(!/<model>/.test(readme), 'no claim of sending a model id');
+  assert.match(readme, /\{npx:<name>\}/, 'states the User-Agent it actually sends');
+  assert.match(readme, /no session logs/i, 'states plainly what it does not read');
+});
+
 test('the plumbing denylist contains no harness names', () => {
   const m = cli.match(/const PLUMBING = new Set\('([^']+)'/);
   assert.ok(m, 'PLUMBING set not found');
