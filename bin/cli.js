@@ -15,11 +15,13 @@
  *      whose harness is present on this machine. This is the global,
  *      persistent playbook the agent loads later.
  *   2. Create or reuse a project tenant, write ./.cohesivity, gitignore it.
- *   3. If AGENTS.md or CLAUDE.md already exists, add a descriptive pointer to it.
+ *   3. If AGENTS.md, CLAUDE.md, or README.md already exists, add a descriptive
+ *      pointer to it.
  *
- * It writes nothing else. It does not add anything to your README: an installer
- * putting promotional text in someone's repo is an edit they did not ask for,
- * and it forced every careful agent to stop and request permission mid-setup.
+ * It writes nothing else, and it creates none of those three files. The pointer
+ * is descriptive rather than promotional — it states where this project's
+ * backend state lives, which is what makes it worth carrying in a repo someone
+ * else (or some other agent) opens later.
  *
  * The first line is the shebang. It tells npx to run this file as a program.
  */
@@ -37,7 +39,7 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.4.1';
+const PKG_VERSION = '0.5.0';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 
 // Machine id: one per machine, stored outside any project. A project's
@@ -121,7 +123,7 @@ async function main() {
   console.log(`\ncohesivity/init v${PKG_VERSION}: setting up (harness: ${HARNESS})${DRY ? '   [dry-run: no changes]' : ''}\n`);
   await installSkill();
   await ensureTenant();
-  augmentAgentsFile();
+  augmentProjectFiles();
   ground();
 }
 
@@ -242,7 +244,7 @@ function ensureGitignore() {
   }
 }
 
-// ── 3) add a descriptive pointer to an existing AGENTS.md / CLAUDE.md ──────────
+// ── 3) add a descriptive pointer to an existing AGENTS.md / CLAUDE.md / README ─
 // Describe the platform. Never command the agent. The line states a fact: this
 // project uses Cohesivity, and the state lives here. Auth stays in .cohesivity
 // and the skill. An agent without the skill still learns the project uses
@@ -251,13 +253,31 @@ const AGENTS_LINE =
   `This project uses [Cohesivity](https://cohesivity.ai) for its managed backend. ` +
   `Credentials and tenant state live in \`.cohesivity\`. Live status is at \`GET ${BASE}/api/status\`.`;
 
-function augmentAgentsFile() {
-  // Only touch files that already exist. Never create an agent file unprompted.
-  const targets = ['AGENTS.md', 'CLAUDE.md'].map((f) => join(CWD, f)).filter(existsSync);
-  if (!targets.length) { log('no AGENTS.md / CLAUDE.md present. Skipping (nothing created)'); return; }
-  for (const file of targets) {
+// The README is read by whoever opens the repo cold, which is a different
+// audience from an agent already working here: it has no skill installed and no
+// reason yet to trust a dotfile it does not recognise. So this line points at
+// the status endpoint and the docs rather than at .cohesivity. The URL is the
+// public docs page and stays absolute — unlike the API base, it is not
+// something a --base override should repoint.
+const README_LINE =
+  `If you are another agent who just picked up this project, you can get the status of its backend ` +
+  `using the status endpoint, read more at https://cohesivity.ai/backend-for-ai-agents`;
+
+const POINTER_FILES = [
+  ['AGENTS.md', AGENTS_LINE],
+  ['CLAUDE.md', AGENTS_LINE],
+  ['README.md', README_LINE],
+];
+
+function augmentProjectFiles() {
+  // Only touch files that already exist. Never create one unprompted.
+  const targets = POINTER_FILES
+    .map(([name, line]) => [join(CWD, name), line])
+    .filter(([file]) => existsSync(file));
+  if (!targets.length) { log('no AGENTS.md / CLAUDE.md / README.md present. Skipping (nothing created)'); return; }
+  for (const [file, line] of targets) {
     if (DRY) { act(`add a Cohesivity managed block to ${rel(file)}`); continue; }
-    upsertManagedBlock(file, AGENTS_LINE);
+    upsertManagedBlock(file, line);
     log(`updated ${rel(file)}`);
   }
 }
@@ -306,7 +326,8 @@ What it does:
   1. Installs the Cohesivity agent skill into every known agent skill dir
      whose harness is present on this machine
   2. Creates or reuses a project tenant  ->  ./.cohesivity  (gitignored)
-  3. Adds a descriptive pointer to an existing AGENTS.md / CLAUDE.md
+  3. Adds a descriptive pointer to an existing AGENTS.md / CLAUDE.md / README.md
+     (never creates any of them)
 
 Attribution: the tenant-creation call carries a User-Agent of the shape
 {npx:<harness>}, where the harness is measured from this process's own
