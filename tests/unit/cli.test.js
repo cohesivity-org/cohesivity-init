@@ -352,3 +352,98 @@ test('an unwritable config dir does not fail setup', async () => {
     }
   });
 });
+
+// ── project-file pointers ─────────────────────────────────────────────────────
+// Run for real rather than asserted on source text: the failure that matters is
+// creating a file the project never had, and that looks identical in the source
+// whichever way the existsSync guard points.
+
+test('writes a pointer into AGENTS.md, CLAUDE.md and README.md when they exist', async () => {
+  await withStubOrigin(async (base) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    try {
+      mkdirSync(project, { recursive: true });
+      writeFileSync(join(project, 'AGENTS.md'), '# Agents\n');
+      writeFileSync(join(project, 'CLAUDE.md'), '# Claude\n');
+      writeFileSync(join(project, 'README.md'), '# My app\n');
+      await runCli(base, home, project);
+
+      const readme = readFileSync(join(project, 'README.md'), 'utf8');
+      assert.match(readme, /^# My app$/m, 'the existing content survives');
+      assert.match(
+        readme,
+        /If you are another agent who just picked up this project, you can get the status of its backend using the status endpoint, read more at https:\/\/cohesivity\.ai\/backend-for-ai-agents/,
+        'the README line addresses the agent that arrives cold',
+      );
+      // The README speaks to someone who has not got the skill and has no
+      // reason to trust a dotfile yet, so it must not be handed the agent-file
+      // line about where the credentials sit.
+      assert.ok(!/Credentials and tenant state live in/.test(readme), 'no credential pointer in the README');
+
+      for (const f of ['AGENTS.md', 'CLAUDE.md']) {
+        const text = readFileSync(join(project, f), 'utf8');
+        assert.match(text, /This project uses \[Cohesivity\]/, `${f} keeps the agent-facing line`);
+        assert.ok(!/backend-for-ai-agents/.test(text), `${f} does not get the README line`);
+      }
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('never creates a README the project did not have', async () => {
+  // The whole reason README injection was dropped once already: an installer
+  // that authors files nobody asked for is an edit the user has to review
+  // mid-setup. Annotating one that exists is a different act from creating one.
+  await withStubOrigin(async (base) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    try {
+      const out = await runCli(base, home, project);
+      for (const f of ['README.md', 'AGENTS.md', 'CLAUDE.md']) {
+        assert.ok(!existsSync(join(project, f)), `${f} must not be created`);
+      }
+      assert.match(out, /no AGENTS\.md \/ CLAUDE\.md \/ README\.md present/, 'and it says so');
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('re-running leaves one pointer block, not two', async () => {
+  await withStubOrigin(async (base) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    try {
+      mkdirSync(project, { recursive: true });
+      writeFileSync(join(project, 'README.md'), '# My app\n');
+      await runCli(base, home, project);
+      await runCli(base, home, project);
+      const readme = readFileSync(join(project, 'README.md'), 'utf8');
+      assert.equal(readme.match(/BEGIN:cohesivity/g).length, 1, 'the managed block is upserted, never duplicated');
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('--dry-run touches none of the project files', async () => {
+  await withStubOrigin(async (base) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    try {
+      mkdirSync(project, { recursive: true });
+      writeFileSync(join(project, 'README.md'), '# My app\n');
+      const out = await runCli(base, home, project, ['--dry-run']);
+      assert.equal(readFileSync(join(project, 'README.md'), 'utf8'), '# My app\n', 'unchanged');
+      assert.match(out, /would add a Cohesivity managed block to README\.md/);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
