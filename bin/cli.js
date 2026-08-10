@@ -30,7 +30,7 @@
  * The first line is the shebang. It tells npx to run this file as a program.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, renameSync, rmSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -122,7 +122,7 @@ const EXPLICIT = String(flag('--runtime') || process.env.COHESIVITY_RUNTIME || '
 const HARNESS = EXPLICIT || inferHarness() || 'none';
 const UA = `{npx:${HARNESS}}`;
 
-main().catch((e) => { console.error(`cohesivity: unexpected error: ${e.message}`); process.exit(1); });
+main().catch((e) => { console.error(`cohesivity: setup failed: ${e.message}`); process.exit(1); });
 
 async function main() {
   console.log(`\ncohesivity/init v${PKG_VERSION}: setting up (harness: ${HARNESS})${DRY ? '   [dry-run: no changes]' : ''}\n`);
@@ -181,11 +181,17 @@ async function installSkill() {
 // ── 2) create or reuse the project tenant ─────────────────────────────────────
 async function ensureTenant() {
   const dotfile = join(CWD, '.cohesivity');
-  if (existsSync(dotfile) && readFileSync(dotfile, 'utf8').includes('coh_management_key=')) {
+  if (existsSync(dotfile)) {
+    const existing = readFileSync(dotfile, 'utf8');
+    ensureGitignore();
+    if (!validTenantCredentials(existing, false)) {
+      throw new Error('existing .cohesivity is incomplete; repair or remove it before retrying');
+    }
     log('reusing existing .cohesivity (no new tenant created)');
     return;
   }
   if (DRY) { act(`create a tenant: POST ${BASE}/api/genesis  ->  ./.cohesivity  (+ .gitignore)`); return; }
+  ensureGitignore();
   const machineId = readMachineId();
   let body;
   let issuedMachineId = null;
@@ -194,27 +200,54 @@ async function ensureTenant() {
     if (machineId) headers[MACHINE_ID_HEADER] = machineId;
     const res = await fetch(`${BASE}/api/genesis`, { method: 'POST', headers });
     body = await res.text();
+    if (!res.ok) throw new Error(`genesis returned HTTP ${res.status}`);
     // Returned on any request that MINTED an id, which is when we sent none
     // *or* when the id we sent no longer verifies (secret rotated, file
     // corrupted). It is not "non-null exactly when we sent none" — assuming
     // that is what left a machine pinned to a dead id forever.
     issuedMachineId = res.headers.get(MACHINE_ID_HEADER);
   } catch (e) {
-    log(`no tenant created (network: ${e.message}). Re-run to retry. The command is idempotent.`);
-    return;
+    throw new Error(`no tenant created (${e.message}). Re-run to retry; the command is idempotent`);
   }
-  if (!body.includes('coh_management_key=')) {
-    log('no tenant created (likely the 10/60s rate limit). Re-run shortly. The command is idempotent.');
-    return;
+  if (!validTenantCredentials(body, true)) {
+    throw new Error('genesis returned an incomplete credential response; no project credentials were installed');
   }
-  writeFileSync(dotfile, body);
-  ensureGitignore();
+  installCredentialsAtomically(dotfile, body);
   // Store whatever the server issued. Its presence already means "we minted
   // this for you", so gating on `!machineId` as well dropped every replacement
   // a machine with a stale id was handed: it re-minted on every genesis, kept
   // none of them, and each project became its own machine row.
   if (issuedMachineId) writeMachineId(issuedMachineId);
   log('created an ephemeral tenant -> ./.cohesivity');
+}
+
+function credentialValue(body, name) {
+  const match = String(body).match(new RegExp(`^${name}=([^\\r\\n]+)$`, 'm'));
+  return match?.[1]?.trim() || null;
+}
+
+function validTenantCredentials(body, requireBootstrapMetadata) {
+  const tenantId = credentialValue(body, 'tenant_id');
+  const managementKey = credentialValue(body, 'coh_management_key');
+  const applicationKey = credentialValue(body, 'coh_application_key');
+  if (!tenantId || !managementKey?.startsWith('coh_man_') || !applicationKey?.startsWith('coh_app_')) return false;
+  if (!requireBootstrapMetadata) return true;
+  const expiresAt = credentialValue(body, 'expires_at');
+  const lifecycle = credentialValue(body, 'tenant_lifecycle');
+  const runtimeProfile = credentialValue(body, 'runtime_profile');
+  return Boolean(expiresAt && Number.isFinite(Date.parse(expiresAt))
+    && (lifecycle === 'ephemeral' || lifecycle === 'claimed')
+    && /^v1-[0-9]+$/.test(runtimeProfile || ''));
+}
+
+function installCredentialsAtomically(dotfile, body) {
+  const temporary = join(CWD, `.cohesivity.tmp-${process.pid}-${Date.now()}`);
+  try {
+    writeFileSync(temporary, body, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+    renameSync(temporary, dotfile);
+  } finally {
+    rmSync(temporary, { force: true });
+  }
 }
 
 // Read the machine id, or null when this machine has none. Every failure —

@@ -158,7 +158,17 @@ const TEST_SKILL = `---\nname: cohesivity\nversion: ${TEST_SKILL_VERSION}\n---\n
 // Modelling it as "echo only when the caller sent none" is what hid the bug
 // this suite now covers: the client could not be caught dropping a replacement
 // because the stub never issued one.
-function withStubOrigin(fn) {
+const COMPLETE_GENESIS_BODY = [
+  'tenant_id=brave-otter-runs',
+  'coh_management_key=coh_man_test_management_key',
+  'coh_application_key=coh_app_test_application_key',
+  'expires_at=2026-08-13T00:00:00.000Z',
+  'tenant_lifecycle=ephemeral',
+  'runtime_profile=v1-326',
+  '',
+].join('\n');
+
+function withStubOrigin(fn, response = {}) {
   const seen = [];
   const reqs = [];
   const server = createServer((req, res) => {
@@ -169,8 +179,8 @@ function withStubOrigin(fn) {
       const headers = { 'Content-Type': 'text/plain' };
       if (!sent) headers['X-Cohesivity-Machine-Id'] = MACHINE_ID;
       else if (!ISSUED_IDS.has(sent)) headers['X-Cohesivity-Machine-Id'] = REPLACEMENT_ID;
-      res.writeHead(201, headers);
-      res.end('tenant_id=brave-otter-runs\ncoh_management_key=coh_man_t\ncoh_application_key=coh_app_t\n');
+      res.writeHead(response.status ?? 201, headers);
+      res.end(response.body ?? COMPLETE_GENESIS_BODY);
       return;
     }
     res.writeHead(404); res.end('');
@@ -270,7 +280,7 @@ test('--bootstrap-only reuses an existing tenant and preserves project pointers'
     try {
       mkdirSync(join(home, '.cursor'), { recursive: true });
       mkdirSync(project, { recursive: true });
-      writeFileSync(join(project, '.cohesivity'), 'tenant_id=steady-fox\ncoh_management_key=coh_man_existing\n');
+      writeFileSync(join(project, '.cohesivity'), 'tenant_id=steady-fox\ncoh_management_key=coh_man_existing\ncoh_application_key=coh_app_existing\n');
       writeFileSync(join(project, 'AGENTS.md'), '# Agents\n');
 
       const out = await runCli(base, home, project, ['--bootstrap-only']);
@@ -280,6 +290,83 @@ test('--bootstrap-only reuses an existing tenant and preserves project pointers'
       assert.ok(!existsSync(join(home, '.cursor', 'skills', 'cohesivity', 'SKILL.md')), 'no duplicate skill');
       assert.ok(!existsSync(join(home, SKILL_REQUEST_FILE)), 'bootstrap does not fetch the skill');
       assert.match(readFileSync(join(project, 'AGENTS.md'), 'utf8'), /BEGIN:cohesivity/);
+      assert.equal(readFileSync(join(project, '.gitignore'), 'utf8'), '.cohesivity\n');
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('--bootstrap-only rejects an incomplete existing credential file but still gitignores it', async () => {
+  await withStubOrigin(async (base, seen) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    try {
+      mkdirSync(project, { recursive: true });
+      const incomplete = 'tenant_id=steady-fox\ncoh_management_key=coh_man_existing\n';
+      writeFileSync(join(project, '.cohesivity'), incomplete);
+      writeFileSync(join(project, 'AGENTS.md'), '# Agents\n');
+
+      await assert.rejects(runCli(base, home, project, ['--bootstrap-only']));
+
+      assert.deepEqual(seen, []);
+      assert.equal(readFileSync(join(project, '.cohesivity'), 'utf8'), incomplete, 'existing credentials are never overwritten');
+      assert.equal(readFileSync(join(project, '.gitignore'), 'utf8'), '.cohesivity\n');
+      assert.equal(readFileSync(join(project, 'AGENTS.md'), 'utf8'), '# Agents\n');
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('--bootstrap-only fails closed on HTTP errors and incomplete credential responses', async () => {
+  for (const response of [
+    { status: 429, body: COMPLETE_GENESIS_BODY },
+    { status: 201, body: 'tenant_id=incomplete\ncoh_management_key=coh_man_incomplete\n' },
+  ]) {
+    await withStubOrigin(async (base) => {
+      const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+      const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+      try {
+        mkdirSync(project, { recursive: true });
+        writeFileSync(join(project, 'README.md'), '# My app\n');
+
+        await assert.rejects(
+          runCli(base, home, project, ['--bootstrap-only']),
+          (error) => {
+            assert.doesNotMatch(error.stdout || '', /cohesivity: ready/);
+            assert.match(error.stderr || '', /setup failed/i);
+            return true;
+          },
+        );
+
+        assert.ok(!existsSync(join(project, '.cohesivity')), 'failed bootstrap never installs credentials');
+        assert.equal(readFileSync(join(project, 'README.md'), 'utf8'), '# My app\n', 'failed bootstrap never writes project pointers');
+        assert.equal(readFileSync(join(project, '.gitignore'), 'utf8'), '.cohesivity\n', 'ignore contract is established before genesis');
+      } finally {
+        rmSync(home, { recursive: true, force: true });
+        rmSync(project, { recursive: true, force: true });
+      }
+    }, response);
+  }
+});
+
+test('--bootstrap-only fails before genesis when credentials cannot be gitignored', async () => {
+  await withStubOrigin(async (base, seen) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    try {
+      mkdirSync(project, { recursive: true });
+      mkdirSync(join(project, '.gitignore'));
+      writeFileSync(join(project, 'README.md'), '# My app\n');
+
+      await assert.rejects(runCli(base, home, project, ['--bootstrap-only']));
+
+      assert.deepEqual(seen, [], 'genesis is never called without an ignore contract');
+      assert.ok(!existsSync(join(project, '.cohesivity')));
+      assert.equal(readFileSync(join(project, 'README.md'), 'utf8'), '# My app\n');
     } finally {
       rmSync(home, { recursive: true, force: true });
       rmSync(project, { recursive: true, force: true });
