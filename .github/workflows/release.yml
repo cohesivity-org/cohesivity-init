@@ -8,7 +8,7 @@
 # GitHub Actions, repository cohesivity-org/cohesivity-init, workflow release.yml.
 #
 # Release: bump the version in package.json and bin/cli.js (the test enforces
-# they match), merge, then push a matching tag: git tag v0.6.1 && git push --tags
+# they match), merge, then push a matching tag: git tag v0.6.2 && git push --tags
 name: release
 
 on:
