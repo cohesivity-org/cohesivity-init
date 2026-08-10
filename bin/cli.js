@@ -44,7 +44,7 @@ import { gunzipSync } from 'node:zlib';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
-const PKG_VERSION = '0.6.3';
+const PKG_VERSION = '0.6.4';
 
 function validateArgs() {
   const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--help', '-h']);
@@ -176,6 +176,8 @@ async function main() {
 // ── 1) detect clients and deliver verified integrations ──────────────────────
 const HOME = homedir();
 const CODEX_HOME = process.env.CODEX_HOME || join(HOME, '.codex');
+const DATA_HOME = process.env.XDG_DATA_HOME || join(HOME, '.local', 'share');
+const DURABLE_PLUGIN_ROOT = join(DATA_HOME, 'cohesivity', 'plugin-packages');
 const CANONICAL_SKILL_DIR = join(HOME, '.agents', 'skills', 'cohesivity');
 const POSITIVE_ANTIGRAVITY_HOMES = [
   join(HOME, '.gemini', 'antigravity'),
@@ -507,10 +509,15 @@ function resolveInside(root, path) {
 async function installForClient(client, artifact) {
   if (!artifact) throw new Error(`verified ${client.artifact} artifact is unavailable`);
   const root = artifact.root;
+  const nativeSource = ['claude', 'codex', 'gemini', 'openclaw'].includes(client.id)
+    || (client.id === 'antigravity' && client.bin)
+    ? join(DURABLE_PLUGIN_ROOT, client.id)
+    : root;
+  if (nativeSource !== root) installDirectoryAtomically(root, nativeSource);
   switch (client.id) {
     case 'claude':
       requireClientCli(client);
-      runNative(client.bin, ['plugin', 'marketplace', 'add', root, '--scope', 'user']);
+      runNative(client.bin, ['plugin', 'marketplace', 'add', nativeSource, '--scope', 'user']);
       runNative(client.bin, ['plugin', 'install', 'cohesivity@cohesivity', '--scope', 'user']);
       break;
     case 'cursor':
@@ -518,22 +525,22 @@ async function installForClient(client, artifact) {
       break;
     case 'codex':
       requireClientCli(client);
-      runNative(client.bin, ['plugin', 'marketplace', 'add', root]);
+      runNative(client.bin, ['plugin', 'marketplace', 'add', nativeSource]);
       runNative(client.bin, ['plugin', 'add', 'cohesivity@cohesivity']);
       break;
     case 'gemini':
       requireClientCli(client);
-      runNative(client.bin, ['extensions', 'install', root, '--consent']);
+      runNative(client.bin, ['extensions', 'install', nativeSource, '--consent']);
       break;
     case 'antigravity':
-      if (client.bin) runNative(client.bin, ['plugin', 'install', root]);
+      if (client.bin) runNative(client.bin, ['plugin', 'install', nativeSource]);
       else if (hasAny(POSITIVE_ANTIGRAVITY_HOMES)) {
         installDirectoryAtomically(root, join(HOME, '.gemini', 'config', 'plugins', 'cohesivity'));
       } else throw new Error('Antigravity CLI is not on PATH and no positive Antigravity home was found');
       break;
     case 'openclaw':
       requireClientCli(client);
-      runNative(client.bin, ['plugins', 'install', root, '--force']);
+      runNative(client.bin, ['plugins', 'install', nativeSource, '--force']);
       runNative(client.bin, ['plugins', 'enable', 'cohesivity']);
       break;
     case 'hermes':
@@ -612,22 +619,28 @@ function describeDryRunPluginDelivery(clients) {
   }
   for (const client of clients) {
     const root = `<verified:${client.artifact}>`;
+    const nativeRoot = displayPath(join(DURABLE_PLUGIN_ROOT, client.id));
     if (client.id === 'claude') {
-      act(`run ${formatCommand(client.bin || 'claude', ['plugin', 'marketplace', 'add', root, '--scope', 'user'])}`);
+      act(`atomically replace ${nativeRoot} from ${root}`);
+      act(`run ${formatCommand(client.bin || 'claude', ['plugin', 'marketplace', 'add', nativeRoot, '--scope', 'user'])}`);
       act(`run ${formatCommand(client.bin || 'claude', ['plugin', 'install', 'cohesivity@cohesivity', '--scope', 'user'])}`);
     } else if (client.id === 'cursor') {
       act(`atomically replace ${displayPath(join(HOME, '.cursor', 'plugins', 'local', 'cohesivity'))} from ${root}`);
     } else if (client.id === 'codex') {
-      act(`run ${formatCommand(client.bin || 'codex', ['plugin', 'marketplace', 'add', root])}`);
+      act(`atomically replace ${nativeRoot} from ${root}`);
+      act(`run ${formatCommand(client.bin || 'codex', ['plugin', 'marketplace', 'add', nativeRoot])}`);
       act(`run ${formatCommand(client.bin || 'codex', ['plugin', 'add', 'cohesivity@cohesivity'])}`);
     } else if (client.id === 'gemini') {
-      act(`run ${formatCommand(client.bin || 'gemini', ['extensions', 'install', root, '--consent'])}`);
+      act(`atomically replace ${nativeRoot} from ${root}`);
+      act(`run ${formatCommand(client.bin || 'gemini', ['extensions', 'install', nativeRoot, '--consent'])}`);
     } else if (client.id === 'antigravity' && client.bin) {
-      act(`run ${formatCommand(client.bin, ['plugin', 'install', root])}`);
+      act(`atomically replace ${nativeRoot} from ${root}`);
+      act(`run ${formatCommand(client.bin, ['plugin', 'install', nativeRoot])}`);
     } else if (client.id === 'antigravity') {
       act(`atomically replace ${displayPath(join(HOME, '.gemini', 'config', 'plugins', 'cohesivity'))} from ${root}`);
     } else if (client.id === 'openclaw') {
-      act(`run ${formatCommand(client.bin || 'openclaw', ['plugins', 'install', root, '--force'])}`);
+      act(`atomically replace ${nativeRoot} from ${root}`);
+      act(`run ${formatCommand(client.bin || 'openclaw', ['plugins', 'install', nativeRoot, '--force'])}`);
       act(`run ${formatCommand(client.bin || 'openclaw', ['plugins', 'enable', 'cohesivity'])}`);
     } else if (client.id === 'hermes') {
       act(`atomically replace ${displayPath(join(HOME, '.hermes', 'plugins', 'cohesivity'))} from ${root}`);

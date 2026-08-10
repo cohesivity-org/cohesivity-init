@@ -154,6 +154,14 @@ server-issued, and not derived from hardware or user data. Delete
 | `--base <url>` | API base for tenant bootstrap (default `https://cohesivity.ai`) |
 | `-h`, `--help` | show command help and the exact package version |
 
+## 0.6.4 durable native marketplaces
+
+Version 0.6.4 copies each verified native-client package to
+`${XDG_DATA_HOME:-~/.local/share}/cohesivity/plugin-packages/<client>` before
+invoking Claude, Codex, Gemini, Antigravity, or OpenClaw. Those clients may
+retain the source path in their marketplace or extension configuration, so the
+installer never points them at extraction directories it deletes on exit.
+
 ## 0.6.3 MCP release metadata
 
 Version 0.6.3 pins Cohesivity plugin 2.1.3. Its local MCP initialization,

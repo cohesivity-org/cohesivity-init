@@ -132,7 +132,7 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.equal(
     m[1],
     'f97e0d2ac8a653b7d54d1bb6e70aee78a8887e60',
-    'init 0.6.3 must install generated skill mirror version 84fbece3c00b',
+    'init 0.6.4 must install generated skill mirror version 84fbece3c00b',
   );
   assert.match(
     m[1],
@@ -567,18 +567,23 @@ test('plain mode detects every supported client independently and uses the Task 
         assert.ok(requests.some((request) => request.includes(route)), `${route} was fetched`);
       }
       const commands = readCommands(fake.commandLog);
+      const durableRoot = join(home, '.local', 'share', 'cohesivity', 'plugin-packages');
       const claudeMarket = commands.find((row) => row.command === 'claude' && row.args.slice(0, 3).join(' ') === 'plugin marketplace add');
-      assert.ok(claudeMarket.args[3].endsWith('/extracted'));
+      assert.equal(claudeMarket.args[3], join(durableRoot, 'claude'));
       assert.deepEqual(claudeMarket.args.slice(4), ['--scope', 'user']);
       assert.ok(commands.some((row) => row.command === 'claude' && JSON.stringify(row.args) === JSON.stringify(['plugin', 'install', 'cohesivity@cohesivity', '--scope', 'user'])));
       const codexMarket = commands.find((row) => row.command === 'codex' && row.args.slice(0, 3).join(' ') === 'plugin marketplace add');
-      assert.ok(codexMarket.args[3].endsWith('/extracted'));
+      assert.equal(codexMarket.args[3], join(durableRoot, 'codex'));
       assert.ok(commands.some((row) => row.command === 'codex' && JSON.stringify(row.args) === JSON.stringify(['plugin', 'add', 'cohesivity@cohesivity'])));
-      assert.ok(commands.some((row) => row.command === 'gemini' && row.args[0] === 'extensions' && row.args[1] === 'install' && row.args.at(-1) === '--consent'));
-      assert.ok(commands.some((row) => row.command === 'agy' && row.args[0] === 'plugin' && row.args[1] === 'install'));
-      assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args.slice(0, 2)) === JSON.stringify(['plugins', 'install']) && row.args.at(-1) === '--force'));
+      assert.ok(commands.some((row) => row.command === 'gemini' && JSON.stringify(row.args) === JSON.stringify(['extensions', 'install', join(durableRoot, 'gemini'), '--consent'])));
+      assert.ok(commands.some((row) => row.command === 'agy' && JSON.stringify(row.args) === JSON.stringify(['plugin', 'install', join(durableRoot, 'antigravity')])));
+      assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'install', join(durableRoot, 'openclaw'), '--force'])));
       assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'enable', 'cohesivity'])));
       assert.ok(commands.some((row) => row.command === 'hermes' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'enable', 'cohesivity'])));
+      for (const client of ['claude', 'codex', 'gemini', 'antigravity', 'openclaw']) {
+        assert.ok(existsSync(join(durableRoot, client)), `${client} keeps a durable verified package root`);
+      }
+      assert.doesNotMatch(commands.map((row) => row.args.join(' ')).join('\n'), /cohesivity-plugin-.*\/extracted/, 'native clients never persist temporary extraction paths');
       assert.equal(readFileSync(join(home, '.cursor', 'plugins', 'local', 'cohesivity', 'plugin.json'), 'utf8'), '{"name":"cohesivity"}\n');
       assert.equal(readFileSync(join(home, '.hermes', 'plugins', 'cohesivity', 'plugin.json'), 'utf8'), '{"name":"cohesivity"}\n');
       assert.ok(!existsSync(join(home, '.cursor', 'plugins', 'local', 'cohesivity', 'stale.txt')), 'Cursor replacement drops stale files');
@@ -653,7 +658,8 @@ test('plugin dry-run prints exact actions without network, commands, or filesyst
       assert.ok(!existsSync(join(project, '.gitignore')));
       assert.equal(readFileSync(join(project, 'README.md'), 'utf8'), '# Dry\n');
       assert.match(out, /would fetch and validate plugin manifest/);
-      assert.match(out, /would run .*claude plugin marketplace add <verified:claude> --scope user/);
+      assert.match(out, /would atomically replace ~\/\.local\/share\/cohesivity\/plugin-packages\/claude from <verified:claude>/);
+      assert.match(out, /would run .*claude plugin marketplace add ~\/\.local\/share\/cohesivity\/plugin-packages\/claude --scope user/);
       assert.match(out, /would atomically replace ~\/\.cursor\/plugins\/local\/cohesivity/);
       assert.match(out, /would create a tenant/);
     } finally {
