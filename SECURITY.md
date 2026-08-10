@@ -34,6 +34,19 @@ If a published version has no provenance, or its provenance points at a
 repository other than `cohesivity-org/cohesivity-init`, treat it as
 untrusted and report it.
 
+Client plugins are fetched only through the immutable manifest pin in
+`bin/cli.js`. The command verifies the pinned manifest byte size and SHA-256,
+then verifies each selected artifact's manifest-pinned byte size and SHA-256
+before extraction. Extraction rejects traversal, absolute paths, links, special
+files, duplicate paths, malformed headers, and oversized content. Portable
+installs are staged and atomically replaced; native client commands run without
+a shell.
+
+`COHESIVITY_PLUGIN_MANIFEST_PIN` is a test injection hook and a trust-boundary
+override. Do not set it when running a published release. Repository tests use
+it only with local deterministic fixtures whose manifest and artifacts are
+fully pinned.
+
 ## Supported version
 
 Security fixes target the latest published version. Older versions are not
