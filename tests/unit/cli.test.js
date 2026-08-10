@@ -131,8 +131,8 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.ok(m, 'SKILL_PIN not found in bin/cli.js');
   assert.equal(
     m[1],
-    '58ee95ac648296e69cac36e7a3eb01f7958e1c1d',
-    'init 0.6.0 must install generated skill mirror version 4a7bd4890f4c',
+    'f97e0d2ac8a653b7d54d1bb6e70aee78a8887e60',
+    'init 0.6.0 must install generated skill mirror version 84fbece3c00b',
   );
   assert.match(
     m[1],
@@ -149,8 +149,8 @@ const MACHINE_ID = 'mach_abc123def456ghi789jk.sIgNaTuRe';
 const REPLACEMENT_ID = 'mach_zyx987wvu654tsr321qp.rEpLaCeMeNt';
 const ISSUED_IDS = new Set([MACHINE_ID, REPLACEMENT_ID]);
 const SKILL_REQUEST_FILE = 'skill-requested';
-const TEST_SKILL_VERSION = '4a7bd4890f4c';
-const TEST_SKILL = `---\nname: cohesivity\nversion: ${TEST_SKILL_VERSION}\n---\n# Cohesivity\n`;
+const TEST_SKILL_VERSION = '84fbece3c00b';
+const TEST_SKILL = `---\nname: cohesivity\nmetadata:\n  version: "${TEST_SKILL_VERSION}"\n---\n# Cohesivity\n`;
 
 // Stub origin recording what the CLI sent. It echoes the header on any request
 // where it MINTS an id — when the caller sent none, and when the caller sent
@@ -199,33 +199,39 @@ function tarGz(entries) {
 
 function pluginFixture(base, overrides = {}) {
   const definitions = {
-    claude: { root: 'packages/claude', entries: [
-      { name: 'packages/claude/.claude-plugin/marketplace.json', body: '{"name":"cohesivity"}\n' },
-      { name: 'packages/claude/plugin.json', body: '{"name":"cohesivity"}\n' },
+    claude: { entries: [
+      { name: '.claude-plugin/marketplace.json', body: '{"name":"cohesivity"}\n' },
+      { name: '.claude-plugin/plugin.json', body: '{"name":"cohesivity"}\n' },
     ] },
-    portable: { root: 'packages/portable', entries: [
-      { name: 'packages/portable/plugin.json', body: '{"name":"cohesivity"}\n' },
-      { name: 'packages/portable/skills/cohesivity/SKILL.md', body: TEST_SKILL },
+    portable: { entries: [
+      { name: 'plugin.json', body: '{"name":"cohesivity"}\n' },
+      { name: 'skills/cohesivity/SKILL.md', body: TEST_SKILL },
     ] },
-    'codex-marketplace': { root: 'codex-marketplace', entries: [
-      { name: 'codex-marketplace/.agents/plugins/marketplace.json', body: '{"name":"cohesivity"}\n' },
+    codex: { entries: [
+      { name: '.agents/plugins/marketplace.json', body: '{"name":"cohesivity"}\n' },
     ] },
-    gemini: { root: 'packages/gemini', entries: [
-      { name: 'packages/gemini/gemini-extension.json', body: '{"name":"cohesivity","version":"1.0.0"}\n' },
+    gemini: { entries: [
+      { name: 'gemini-extension.json', body: '{"name":"cohesivity","version":"1.0.0"}\n' },
+    ] },
+    antigravity: { entries: [
+      { name: 'plugin.json', body: '{"name":"cohesivity"}\n' },
     ] },
     ...overrides,
   };
   const archives = {};
-  const artifacts = {};
+  const packages = [];
   for (const [key, definition] of Object.entries(definitions)) {
     const archive = tarGz(definition.entries);
     archives[`/plugins/${key}.tar.gz`] = archive;
-    artifacts[key] = {
-      url: `${base}/plugins/${key}.tar.gz`, bytes: archive.length, sha256: sha256(archive),
-      format: 'tar.gz', root: definition.root,
-    };
+    packages.push({
+      client: key,
+      archive: `${key}.tar.gz`,
+      immutable_url: `${base}/plugins/${key}.tar.gz`,
+      size: archive.length,
+      sha256: sha256(archive),
+    });
   }
-  const manifest = Buffer.from(JSON.stringify({ schemaVersion: 1, release: 'test-fixture', artifacts }));
+  const manifest = Buffer.from(JSON.stringify({ schema_version: 1, version: 'test-fixture', packages }));
   return {
     archives,
     manifest,
@@ -550,16 +556,16 @@ test('plain mode detects every supported client independently and uses the Task 
       });
 
       assert.deepEqual(seen, [null], 'plugin delivery does not replace tenant bootstrap');
-      for (const route of ['manifest.json', 'claude.tar.gz', 'portable.tar.gz', 'codex-marketplace.tar.gz', 'gemini.tar.gz']) {
+      for (const route of ['manifest.json', 'claude.tar.gz', 'portable.tar.gz', 'codex.tar.gz', 'gemini.tar.gz']) {
         assert.ok(requests.some((request) => request.includes(route)), `${route} was fetched`);
       }
       const commands = readCommands(fake.commandLog);
       const claudeMarket = commands.find((row) => row.command === 'claude' && row.args.slice(0, 3).join(' ') === 'plugin marketplace add');
-      assert.ok(claudeMarket.args[3].endsWith('/extracted/packages/claude'));
+      assert.ok(claudeMarket.args[3].endsWith('/extracted'));
       assert.deepEqual(claudeMarket.args.slice(4), ['--scope', 'user']);
       assert.ok(commands.some((row) => row.command === 'claude' && JSON.stringify(row.args) === JSON.stringify(['plugin', 'install', 'cohesivity@cohesivity', '--scope', 'user'])));
       const codexMarket = commands.find((row) => row.command === 'codex' && row.args.slice(0, 3).join(' ') === 'plugin marketplace add');
-      assert.ok(codexMarket.args[3].endsWith('/extracted/codex-marketplace'));
+      assert.ok(codexMarket.args[3].endsWith('/extracted'));
       assert.ok(commands.some((row) => row.command === 'codex' && JSON.stringify(row.args) === JSON.stringify(['plugin', 'add', 'cohesivity@cohesivity'])));
       assert.ok(commands.some((row) => row.command === 'gemini' && row.args[0] === 'extensions' && row.args[1] === 'install' && row.args.at(-1) === '--consent'));
       assert.ok(commands.some((row) => row.command === 'agy' && row.args[0] === 'plugin' && row.args[1] === 'install'));
@@ -707,14 +713,14 @@ test('unsafe archives are rejected before atomic replacement while tenant bootst
     }
   }, {
     pluginOverrides: {
-      portable: { root: 'packages/portable', entries: [{ name: '../escaped', body: 'bad\n' }] },
+      portable: { entries: [{ name: '../escaped', body: 'bad\n' }] },
     },
   });
 });
 
 for (const unsafe of [
-  { label: 'symbolic link', entry: { name: 'packages/portable/link', type: '2', linkname: '../../outside' }, error: /artifact link/i },
-  { label: 'special file', entry: { name: 'packages/portable/device', type: '3' }, error: /artifact special entry/i },
+  { label: 'symbolic link', entry: { name: 'link', type: '2', linkname: '../../outside' }, error: /artifact link/i },
+  { label: 'special file', entry: { name: 'device', type: '3' }, error: /artifact special entry/i },
 ]) {
   test(`safe extraction rejects a ${unsafe.label}`, async () => {
     await withStubOrigin(async (base, seen, _reqs, plugins) => {
@@ -738,7 +744,7 @@ for (const unsafe of [
         rmSync(project, { recursive: true, force: true });
       }
     }, {
-      pluginOverrides: { portable: { root: 'packages/portable', entries: [unsafe.entry] } },
+      pluginOverrides: { portable: { entries: [unsafe.entry] } },
     });
   });
 }
@@ -752,7 +758,7 @@ test('artifact byte-size and SHA-256 pins are enforced before extraction', async
       mkdirSync(join(home, '.cursor'), { recursive: true });
       mkdirSync(emptyPath);
       const manifest = JSON.parse(plugins.manifest.toString('utf8'));
-      manifest.artifacts.portable.sha256 = '0'.repeat(64);
+      manifest.packages.find((entry) => entry.client === 'portable').sha256 = '0'.repeat(64);
       plugins.manifest = Buffer.from(JSON.stringify(manifest));
       plugins.pin = JSON.stringify({
         url: `${base}/plugins/manifest.json`, bytes: plugins.manifest.length, sha256: sha256(plugins.manifest),
@@ -774,8 +780,8 @@ test('artifact byte-size and SHA-256 pins are enforced before extraction', async
   });
 });
 
-test('plugin pins are isolated placeholders and config formats are never regex-edited', () => {
-  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{[\s\S]*REPLACE_WITH_FINAL_40_CHAR_COMMIT[\s\S]*REPLACE_WITH_FINAL_64_CHAR_SHA256[\s\S]*\}\);/);
+test('plugin pins are immutable and config formats are never regex-edited', () => {
+  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{[\s\S]*621beb765f34ea082ad8a9ff59488cd432aa0099[\s\S]*403ecc59865f752fdc7f647104d6006588be834a1e285c94f2f70e18144e34cd[\s\S]*\}\);/);
   assert.match(cli, /spawnSync\(command, args, \{[\s\S]*shell: false/);
   assert.doesNotMatch(cli, /config\.(?:json|toml|yaml)[\s\S]{0,100}replace\(/i);
   assert.match(cli, /artifact link .* is not allowed/);

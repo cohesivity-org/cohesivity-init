@@ -78,23 +78,24 @@ const MACHINE_ID_FILE = join(MACHINE_ID_DIR, 'machine-id');
 
 // The skill is pinned to an immutable commit in the public, auditable repo.
 // Bumping the pin is a deliberate release step. See COH-172.
-const SKILL_PIN = '58ee95ac648296e69cac36e7a3eb01f7958e1c1d';
+const SKILL_PIN = 'f97e0d2ac8a653b7d54d1bb6e70aee78a8887e60';
 const SKILL_URL = `https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/${SKILL_PIN}/cohesivity.skill.md`;
 
-// Plugin release pins live in this one block. These deliberately cannot ship:
-// replace all three values together when the final immutable release exists.
+// Plugin release pins live in this one block. Bump all three values together
+// after publishing a new two-commit artifact manifest from cohesivity-plugin.
 // Tests inject a complete pin with COHESIVITY_PLUGIN_MANIFEST_PIN.
 const PLUGIN_RELEASE = Object.freeze({
-  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugins/REPLACE_WITH_FINAL_40_CHAR_COMMIT/release-manifest.json',
-  manifestBytes: -1,
-  manifestSha256: 'REPLACE_WITH_FINAL_64_CHAR_SHA256',
+  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/621beb765f34ea082ad8a9ff59488cd432aa0099/artifacts/v2.1.0/install-manifest.v1.json',
+  manifestBytes: 9610,
+  manifestSha256: '403ecc59865f752fdc7f647104d6006588be834a1e285c94f2f70e18144e34cd',
 });
 
 const ARTIFACT_KEYS = Object.freeze({
   claude: 'claude',
   portable: 'portable',
-  codex: 'codex-marketplace',
+  codex: 'codex',
   gemini: 'gemini',
+  antigravity: 'antigravity',
 });
 
 // Harness: the nearest ancestor process that is not generic plumbing. Only
@@ -204,7 +205,7 @@ function hasAny(paths) { return paths.some((path) => existsSync(path)); }
 function detectClients() {
   const bins = {
     claude: executable(['claude']),
-    cursor: executable(['cursor', 'cursor-agent', 'agent']),
+    cursor: executable(['cursor', 'cursor-agent']),
     codex: executable(['codex']),
     gemini: executable(['gemini']),
     antigravity: executable(['agy']),
@@ -223,7 +224,7 @@ function detectClients() {
     },
     {
       id: 'antigravity', name: 'Antigravity', bin: bins.antigravity,
-      detected: Boolean(bins.antigravity || hasAny(POSITIVE_ANTIGRAVITY_HOMES) || harnessIs('agy', 'antigravity')), artifact: ARTIFACT_KEYS.portable,
+      detected: Boolean(bins.antigravity || hasAny(POSITIVE_ANTIGRAVITY_HOMES) || harnessIs('agy', 'antigravity')), artifact: ARTIFACT_KEYS.antigravity,
     },
     { id: 'openclaw', name: 'OpenClaw', bin: bins.openclaw, detected: Boolean(bins.openclaw || existsSync(join(HOME, '.openclaw')) || harnessIs('openclaw')), artifact: ARTIFACT_KEYS.portable },
     { id: 'hermes', name: 'Hermes', bin: bins.hermes, detected: Boolean(bins.hermes || existsSync(join(HOME, '.hermes')) || harnessIs('hermes')), artifact: ARTIFACT_KEYS.portable },
@@ -350,27 +351,27 @@ async function fetchPluginArtifacts(keys) {
   let manifest;
   try { manifest = JSON.parse(manifestBytes.toString('utf8')); }
   catch { throw new Error('verified plugin manifest is not valid JSON'); }
-  if (manifest.schemaVersion !== 1 || !manifest.artifacts || Array.isArray(manifest.artifacts) || typeof manifest.artifacts !== 'object') {
+  if (manifest.schema_version !== 1 || !Array.isArray(manifest.packages)) {
     throw new Error('verified plugin manifest has an unsupported schema');
   }
+  const entries = new Map(manifest.packages.map((entry) => [entry?.client, entry]));
 
   const result = new Map();
   try {
     for (const key of keys) {
-      const entry = manifest.artifacts[key];
+      const entry = entries.get(key);
       if (!entry || typeof entry !== 'object') throw new Error(`plugin manifest has no ${key} artifact`);
-      validatePin(entry.url, entry.bytes, entry.sha256, `${key} artifact`, pin.injected, 32 * 1024 * 1024);
-      if (entry.format !== 'tar.gz') throw new Error(`${key} artifact format must be tar.gz`);
-      const rootName = validateArchivePath(entry.root || '.', true);
-      const archive = await fetchVerified(entry.url, entry.bytes, entry.sha256, `${key} artifact`);
+      validatePin(entry.immutable_url, entry.size, entry.sha256, `${key} artifact`, pin.injected, 32 * 1024 * 1024);
+      if (typeof entry.archive !== 'string' || !entry.archive.endsWith('.tar.gz')) {
+        throw new Error(`${key} artifact format must be tar.gz`);
+      }
+      const archive = await fetchVerified(entry.immutable_url, entry.size, entry.sha256, `${key} artifact`);
       const temporary = mkdtempSync(join(tmpdir(), 'cohesivity-plugin-'));
       try {
         const extracted = join(temporary, 'extracted');
         mkdirSync(extracted, { mode: 0o700 });
         extractTarGzSafely(archive, extracted);
-        const root = rootName === '.' ? extracted : resolveInside(extracted, rootName);
-        if (!existsSync(root) || !lstatSync(root).isDirectory()) throw new Error(`${key} artifact root ${entry.root} is not a directory`);
-        result.set(key, { root, temporary });
+        result.set(key, { root: extracted, temporary });
       } catch (error) {
         rmSync(temporary, { recursive: true, force: true });
         throw error;
@@ -823,7 +824,9 @@ function ground(deliveryFailures) {
   }
 }
 
-function versionOf(md) { return (md.match(/^version:\s*(.+)$/m) || [])[1]?.trim() || null; }
+function versionOf(md) {
+  return (md.match(/^metadata:\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+version:\s*["']?([0-9a-f]{12})["']?\s*$/m) || [])[1] || null;
+}
 
 function help() {
   console.log(`

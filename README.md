@@ -66,29 +66,28 @@ The manifest schema is:
 
 ```json
 {
-  "schemaVersion": 1,
-  "release": "immutable release identifier",
-  "artifacts": {
-    "portable": {
-      "url": "https://immutable.example/portable.tar.gz",
-      "bytes": 1234,
+  "schema_version": 1,
+  "version": "2.1.0",
+  "packages": [
+    {
+      "client": "portable",
+      "immutable_url": "https://immutable.example/portable.tar.gz",
+      "size": 1234,
       "sha256": "64 lowercase hexadecimal characters",
-      "format": "tar.gz",
-      "root": "packages/portable"
+      "archive": "cohesivity-portable-2.1.0.tar.gz"
     }
-  }
+  ]
 }
 ```
 
-The required artifact keys are `claude`, `portable`, `codex-marketplace`, and
-`gemini`. Extraction rejects absolute paths, traversal, links, duplicate paths,
+The required artifact keys are `claude`, `portable`, `codex`, `gemini`, and
+`antigravity`. Extraction rejects absolute paths, traversal, links, duplicate paths,
 special files, malformed headers, oversized content, and archives without an
 end marker. Staged portable installs replace the previous directory atomically,
 with rollback if the commit fails.
 
-The final release commit, manifest byte size, and manifest SHA-256 are isolated
-in the `PLUGIN_RELEASE` block in `bin/cli.js`. This branch intentionally uses
-obvious non-shipping placeholders until final artifacts exist. Tests use the
+The immutable manifest commit, byte size, and SHA-256 are isolated in the
+`PLUGIN_RELEASE` block in `bin/cli.js`. Tests use the
 `COHESIVITY_PLUGIN_MANIFEST_PIN` injection hook with local, fully pinned
 fixtures; normal users should not set it.
 
