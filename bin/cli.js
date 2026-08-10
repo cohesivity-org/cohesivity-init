@@ -10,13 +10,17 @@
  * Zero dependencies. Node 18+ provides global `fetch` and the `node:` builtins,
  * so the registry ships this one file and nothing else.
  *
- * The command does three things, in order:
+ * By default, the command does three things, in order:
  *   1. Install the Cohesivity agent skill into every known agent skill dir
  *      whose harness is present on this machine. This is the global,
  *      persistent playbook the agent loads later.
  *   2. Create or reuse a project tenant, write ./.cohesivity, gitignore it.
  *   3. If AGENTS.md, CLAUDE.md, or README.md already exists, add a descriptive
  *      pointer to it.
+ *
+ * With --bootstrap-only, step 1 is skipped so an installer that already
+ * delivers the skill can bootstrap the project without installing a duplicate.
+ * Tenant creation, machine attribution, and project pointers are unchanged.
  *
  * It writes nothing else, and it creates none of those three files. The pointer
  * is descriptive rather than promotional — it states where this project's
@@ -39,7 +43,7 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.5.0';
+const PKG_VERSION = '0.6.0';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 
 // Machine id: one per machine, stored outside any project. A project's
@@ -55,7 +59,7 @@ const MACHINE_ID_FILE = join(MACHINE_ID_DIR, 'machine-id');
 
 // The skill is pinned to an immutable commit in the public, auditable repo.
 // Bumping the pin is a deliberate release step. See COH-172.
-const SKILL_PIN = '6c4c04d94d344590f6732763f0116b155a32753c';
+const SKILL_PIN = '58ee95ac648296e69cac36e7a3eb01f7958e1c1d';
 const SKILL_URL = `https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/${SKILL_PIN}/cohesivity.skill.md`;
 
 // Harness: the nearest ancestor process that is not generic plumbing. Only
@@ -105,6 +109,7 @@ function inferHarness() {
 }
 
 const DRY = has('--dry-run');
+const BOOTSTRAP_ONLY = has('--bootstrap-only');
 
 const CWD = process.cwd();
 const rel = (p) => p.replace(CWD + '/', '');
@@ -121,7 +126,8 @@ main().catch((e) => { console.error(`cohesivity: unexpected error: ${e.message}`
 
 async function main() {
   console.log(`\ncohesivity/init v${PKG_VERSION}: setting up (harness: ${HARNESS})${DRY ? '   [dry-run: no changes]' : ''}\n`);
-  await installSkill();
+  if (BOOTSTRAP_ONLY) log('skill installation skipped (--bootstrap-only)');
+  else await installSkill();
   await ensureTenant();
   augmentProjectFiles();
   ground();
@@ -303,7 +309,11 @@ function ground() {
   console.log(`  - Keys are in .cohesivity (gitignored, do not commit).`);
   console.log(`  - Provision a service: POST ${BASE}/api/resources/<name>  (Authorization: Bearer <coh_management_key>)`);
   console.log(`  - Per-service docs: ${BASE}/offerings/<name>   \u00b7   full reference: ${BASE}/llms.txt`);
-  console.log('  - The skill is set up for future sessions. Claude Code auto-loads it if ~/.claude/skills already existed, otherwise restart; Cursor and Codex pick it up on reload/restart.');
+  if (BOOTSTRAP_ONLY) {
+    console.log('  - Skill installation was skipped; use the Cohesivity skill supplied by the invoking installer or plugin.');
+  } else {
+    console.log('  - The skill is set up for future sessions. Claude Code auto-loads it if ~/.claude/skills already existed, otherwise restart; Cursor and Codex pick it up on reload/restart.');
+  }
 }
 
 function versionOf(md) { return (md.match(/^version:\s*(.+)$/m) || [])[1]?.trim() || null; }
@@ -316,11 +326,12 @@ Usage:
   npx @cohesivity/init [options]
 
 Options:
-  --runtime <name>   explicit harness label override (normally measured from
-                     the process ancestry; use only when the measurement is wrong)
-  --dry-run          print what would happen. Make no changes
-  --base <url>       API base (default https://cohesivity.ai)
-  -h, --help         show this help
+  --runtime <name>    explicit harness label override (normally measured from
+                      the process ancestry; use only when the measurement is wrong)
+  --bootstrap-only    create or reuse the tenant and project pointer; skip skill installation
+  --dry-run           print what would happen. Make no changes
+  --base <url>        API base (default https://cohesivity.ai)
+  -h, --help          show this help
 
 What it does:
   1. Installs the Cohesivity agent skill into every known agent skill dir
@@ -328,6 +339,9 @@ What it does:
   2. Creates or reuses a project tenant  ->  ./.cohesivity  (gitignored)
   3. Adds a descriptive pointer to an existing AGENTS.md / CLAUDE.md / README.md
      (never creates any of them)
+
+With --bootstrap-only, step 1 is skipped. Steps 2 and 3, including machine
+attribution and existing project-pointer behavior, are unchanged.
 
 Attribution: the tenant-creation call carries a User-Agent of the shape
 {npx:<harness>}, where the harness is measured from this process's own

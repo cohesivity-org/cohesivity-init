@@ -127,6 +127,11 @@ test('no model-id logic remains: the session log is never read', () => {
 test('the skill pin is a full immutable commit sha', () => {
   const m = cli.match(/^const SKILL_PIN = '([^']+)';$/m);
   assert.ok(m, 'SKILL_PIN not found in bin/cli.js');
+  assert.equal(
+    m[1],
+    '58ee95ac648296e69cac36e7a3eb01f7958e1c1d',
+    'init 0.6.0 must install generated skill mirror version 4a7bd4890f4c',
+  );
   assert.match(
     m[1],
     /^[0-9a-f]{40}$/,
@@ -141,6 +146,9 @@ const MACHINE_ID = 'mach_abc123def456ghi789jk.sIgNaTuRe';
 // What the origin issues in place of an id it cannot verify.
 const REPLACEMENT_ID = 'mach_zyx987wvu654tsr321qp.rEpLaCeMeNt';
 const ISSUED_IDS = new Set([MACHINE_ID, REPLACEMENT_ID]);
+const SKILL_REQUEST_FILE = 'skill-requested';
+const TEST_SKILL_VERSION = '4a7bd4890f4c';
+const TEST_SKILL = `---\nname: cohesivity\nversion: ${TEST_SKILL_VERSION}\n---\n# Cohesivity\n`;
 
 // Stub origin recording what the CLI sent. It echoes the header on any request
 // where it MINTS an id — when the caller sent none, and when the caller sent
@@ -180,23 +188,153 @@ function withStubOrigin(fn) {
   });
 }
 
-// Runs the real CLI in a throwaway project with a throwaway HOME.
+// Runs the real CLI in a throwaway project with a throwaway HOME. A preload
+// intercepts only the immutable skill URL, keeping the subprocess tests local
+// while preserving the real fetch path for the stub genesis origin.
 //
 // Must be async: the stub origin shares this process's event loop, so a
 // blocking execFileSync would deadlock — the CLI would wait on a response the
-// server could not send. claude-web is the runtime because it is the one that
-// skips the global skill install, keeping the test off the network entirely;
-// the machine-id path under test is identical across runtimes.
+// server could not send.
 async function runCli(base, home, project, extraArgs = []) {
   mkdirSync(project, { recursive: true });
+  const fetchStub = join(home, 'fetch-stub.cjs');
+  writeFileSync(fetchStub, `
+const { appendFileSync } = require('node:fs');
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (input, init) => {
+  if (String(input).startsWith('https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/')) {
+    appendFileSync(${JSON.stringify(join(home, SKILL_REQUEST_FILE))}, '1\\n');
+    return { ok: true, status: 200, text: async () => ${JSON.stringify(TEST_SKILL)} };
+  }
+  return realFetch(input, init);
+};
+`);
   const { stdout } = await run(process.execPath, [join(ROOT, 'bin', 'cli.js'), '--base', base, '--no-branding', ...extraArgs], {
     cwd: project,
     encoding: 'utf8',
     timeout: 30000,
-    env: { ...process.env, HOME: home, XDG_CONFIG_HOME: join(home, '.config'), COHESIVITY_RUNTIME: 'claude-web' },
+    env: {
+      ...process.env,
+      HOME: home,
+      XDG_CONFIG_HOME: join(home, '.config'),
+      COHESIVITY_RUNTIME: 'claude-web',
+      NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --require=${fetchStub}`.trim(),
+    },
   });
   return stdout;
 }
+
+// ── coordinated bootstrap ────────────────────────────────────────────────────
+
+test('--help documents bootstrap-only mode', async () => {
+  const { stdout } = await run(process.execPath, [join(ROOT, 'bin', 'cli.js'), '--help'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  });
+  assert.match(stdout, /--bootstrap-only/);
+  assert.match(stdout, /skip(?:s)? (?:the )?skill installation/i);
+});
+
+test('--bootstrap-only creates a fresh attributed tenant without installing the skill', async () => {
+  await withStubOrigin(async (base, seen, reqs) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    try {
+      mkdirSync(join(home, '.claude'), { recursive: true });
+      mkdirSync(project, { recursive: true });
+      writeFileSync(join(project, 'README.md'), '# My app\n');
+
+      const out = await runCli(base, home, project, ['--bootstrap-only']);
+
+      assert.deepEqual(seen, [null], 'fresh bootstrap calls genesis once without a machine id');
+      assert.equal(reqs[0].ua, '{npx:claude-web}', 'bootstrap keeps harness attribution');
+      assert.match(readFileSync(join(project, '.cohesivity'), 'utf8'), /^tenant_id=brave-otter-runs$/m);
+      assert.equal(readFileSync(join(project, '.gitignore'), 'utf8'), '.cohesivity\n');
+      assert.equal(readFileSync(join(home, '.config', 'cohesivity', 'machine-id'), 'utf8').trim(), MACHINE_ID);
+      assert.ok(!existsSync(join(home, '.claude', 'skills', 'cohesivity', 'SKILL.md')), 'no duplicate skill');
+      assert.ok(!existsSync(join(home, SKILL_REQUEST_FILE)), 'bootstrap does not even fetch the skill');
+      assert.match(readFileSync(join(project, 'README.md'), 'utf8'), /BEGIN:cohesivity/, 'project pointer is preserved');
+      assert.match(out, /skill installation skipped/i);
+      assert.match(out, /invoking installer or plugin/);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('--bootstrap-only reuses an existing tenant and preserves project pointers', async () => {
+  await withStubOrigin(async (base, seen) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    try {
+      mkdirSync(join(home, '.cursor'), { recursive: true });
+      mkdirSync(project, { recursive: true });
+      writeFileSync(join(project, '.cohesivity'), 'tenant_id=steady-fox\ncoh_management_key=coh_man_existing\n');
+      writeFileSync(join(project, 'AGENTS.md'), '# Agents\n');
+
+      const out = await runCli(base, home, project, ['--bootstrap-only']);
+
+      assert.deepEqual(seen, [], 'an existing tenant is reused without genesis');
+      assert.match(out, /reusing existing \.cohesivity/);
+      assert.ok(!existsSync(join(home, '.cursor', 'skills', 'cohesivity', 'SKILL.md')), 'no duplicate skill');
+      assert.ok(!existsSync(join(home, SKILL_REQUEST_FILE)), 'bootstrap does not fetch the skill');
+      assert.match(readFileSync(join(project, 'AGENTS.md'), 'utf8'), /BEGIN:cohesivity/);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('--bootstrap-only --dry-run reports bootstrap effects but changes nothing', async () => {
+  await withStubOrigin(async (base, seen) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    try {
+      mkdirSync(join(home, '.codex'), { recursive: true });
+      mkdirSync(project, { recursive: true });
+      writeFileSync(join(project, 'README.md'), '# My app\n');
+
+      const out = await runCli(base, home, project, ['--bootstrap-only', '--dry-run']);
+
+      assert.deepEqual(seen, [], 'dry-run never calls genesis');
+      assert.ok(!existsSync(join(project, '.cohesivity')));
+      assert.ok(!existsSync(join(project, '.gitignore')));
+      assert.equal(readFileSync(join(project, 'README.md'), 'utf8'), '# My app\n');
+      assert.ok(!existsSync(join(home, '.config', 'cohesivity', 'machine-id')));
+      assert.ok(!existsSync(join(home, '.codex', 'skills', 'cohesivity', 'SKILL.md')));
+      assert.ok(!existsSync(join(home, SKILL_REQUEST_FILE)), 'dry bootstrap does not fetch the skill');
+      assert.match(out, /would create a tenant/);
+      assert.match(out, /would add a Cohesivity managed block to README\.md/);
+      assert.ok(!/would install the skill/.test(out));
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('default mode remains backward-compatible and installs the skill', async () => {
+  await withStubOrigin(async (base, seen) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    try {
+      mkdirSync(join(home, '.claude'), { recursive: true });
+
+      const out = await runCli(base, home, project);
+
+      assert.deepEqual(seen, [null], 'default mode still creates the tenant');
+      assert.equal(readFileSync(join(home, '.claude', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL);
+      assert.ok(existsSync(join(home, SKILL_REQUEST_FILE)), 'default mode still fetches the skill');
+      assert.match(out, new RegExp(`skill added=1 updated=0 current=0 \\(version ${TEST_SKILL_VERSION}\\)`));
+      assert.match(readFileSync(join(project, '.cohesivity'), 'utf8'), /coh_management_key=/);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
 
 test('genesis carries the measured UA and nothing else', async () => {
   await withStubOrigin(async (base, seen, reqs) => {

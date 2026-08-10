@@ -16,6 +16,14 @@ It writes nothing else.
 
 Install does nothing. Every effect happens when you run the command, and you can read the script first. There is no `postinstall` hook.
 
+When another installer or plugin already delivers the Cohesivity skill, use bootstrap-only mode to avoid installing a duplicate:
+
+```bash
+npx @cohesivity/init --bootstrap-only
+```
+
+This mode skips only skill installation. It still creates or reuses the project tenant and `.cohesivity`, preserves the same machine attribution, and adds or updates the same project pointers. Without `--bootstrap-only`, the default three-step behavior is unchanged.
+
 ## Verifying the release
 
 Every version publishes from [this repository's](https://github.com/cohesivity-org/cohesivity-init) release workflow with npm provenance, so the tarball you run is tied to a specific commit:
@@ -29,6 +37,7 @@ npm audit signatures
 | flag | effect |
 | --- | --- |
 | `--runtime <name>` | explicit harness label override — use only when the measurement is wrong |
+| `--bootstrap-only` | create or reuse the tenant and project pointer, but skip skill installation |
 | `--dry-run` | print what would happen. Change nothing |
 | `--base <url>` | API base (default `https://cohesivity.ai`) |
 
