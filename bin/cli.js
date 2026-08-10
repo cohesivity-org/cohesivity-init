@@ -44,6 +44,7 @@ import { gunzipSync } from 'node:zlib';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
+const PKG_VERSION = '0.6.1';
 
 function validateArgs() {
   const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--help', '-h']);
@@ -61,7 +62,6 @@ function validateArgs() {
 if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
-const PKG_VERSION = '0.6.0';
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
 const MCP_URL = 'https://cohesivity.ai/mcp/manage';
 
@@ -85,9 +85,9 @@ const SKILL_URL = `https://raw.githubusercontent.com/cohesivity-org/cohesivity-s
 // after publishing a new two-commit artifact manifest from cohesivity-plugin.
 // Tests inject a complete pin with COHESIVITY_PLUGIN_MANIFEST_PIN.
 const PLUGIN_RELEASE = Object.freeze({
-  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/621beb765f34ea082ad8a9ff59488cd432aa0099/artifacts/v2.1.0/install-manifest.v1.json',
+  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/e30d49df188184b9ee4b477210a3a4fdcca47f85/artifacts/v2.1.1/install-manifest.v1.json',
   manifestBytes: 9610,
-  manifestSha256: '403ecc59865f752fdc7f647104d6006588be834a1e285c94f2f70e18144e34cd',
+  manifestSha256: 'a6be8cac99534be83e52b3c97a93bea5667c3458737eebc8d5c4bd5c44f953bb',
 });
 
 const ARTIFACT_KEYS = Object.freeze({
@@ -397,11 +397,20 @@ function validatePin(url, bytes, sha256, label, injected, maximumBytes) {
 async function fetchVerified(url, expectedBytes, expectedSha256, label) {
   const res = await fetch(url, { headers: { 'User-Agent': UA } });
   if (!res.ok) throw new Error(`${label} returned HTTP ${res.status}`);
-  const claimed = res.headers?.get?.('content-length');
-  if (claimed !== null && claimed !== undefined && /^\d+$/.test(claimed) && Number(claimed) !== expectedBytes) {
-    throw new Error(`${label} Content-Length ${claimed} does not match pinned ${expectedBytes}`);
+  const chunks = [];
+  let length = 0;
+  const reader = res.body.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.byteLength;
+    if (length > expectedBytes) {
+      try { await reader.cancel(); } catch {}
+      throw new Error(`${label} byte size ${length} exceeds pinned ${expectedBytes}`);
+    }
+    chunks.push(Buffer.from(value));
   }
-  const bytes = Buffer.from(await res.arrayBuffer());
+  const bytes = Buffer.concat(chunks, length);
   if (bytes.length !== expectedBytes) throw new Error(`${label} byte size ${bytes.length} does not match pinned ${expectedBytes}`);
   const digest = createHash('sha256').update(bytes).digest('hex');
   if (digest !== expectedSha256) throw new Error(`${label} SHA-256 does not match its pin`);
@@ -830,7 +839,7 @@ function versionOf(md) {
 
 function help() {
   console.log(`
-@cohesivity/init: set up Cohesivity in this project.
+@cohesivity/init v${PKG_VERSION}: set up Cohesivity in this project.
 
 Usage:
   npx @cohesivity/init [options]
