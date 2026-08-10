@@ -37,10 +37,12 @@ untrusted and report it.
 Client plugins are fetched only through the immutable manifest pin in
 `bin/cli.js`. The command verifies the pinned manifest byte size and SHA-256,
 then verifies each selected artifact's manifest-pinned byte size and SHA-256
-before extraction. Extraction rejects traversal, absolute paths, links, special
-files, duplicate paths, malformed headers, and oversized content. Portable
-installs are staged and atomically replaced; native client commands run without
-a shell.
+before extraction. Size verification uses the decoded response body rather than
+the HTTP transfer `Content-Length`, which can describe compressed bytes, and the
+bounded reader stops when decoded content exceeds its pin. Extraction rejects
+traversal, absolute paths, links, special files, duplicate paths, malformed
+headers, and oversized content. Portable installs are staged and atomically
+replaced; native client commands run without a shell.
 
 `COHESIVITY_PLUGIN_MANIFEST_PIN` is a test injection hook and a trust-boundary
 override. Do not set it when running a published release. Repository tests use

@@ -132,7 +132,7 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.equal(
     m[1],
     'f97e0d2ac8a653b7d54d1bb6e70aee78a8887e60',
-    'init 0.6.0 must install generated skill mirror version 84fbece3c00b',
+    'init 0.6.1 must install generated skill mirror version 84fbece3c00b',
   );
   assert.match(
     m[1],
@@ -258,8 +258,14 @@ function withStubOrigin(fn, response = {}) {
       return;
     }
     if (req.url === '/plugins/manifest.json' && plugins) {
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': plugins.manifest.length });
-      res.end(plugins.manifest); return;
+      const decoded = response.manifestBody?.(plugins.manifest) ?? plugins.manifest;
+      const body = response.gzipManifest ? gzipSync(decoded, { mtime: 0 }) : decoded;
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Content-Length': body.length,
+        ...(response.gzipManifest ? { 'Content-Encoding': 'gzip' } : {}),
+      });
+      res.end(body); return;
     }
     if (plugins?.archives[req.url]) {
       const body = plugins.archives[req.url];
@@ -351,6 +357,7 @@ test('--help documents no-plugin mode', async () => {
     cwd: ROOT,
     encoding: 'utf8',
   });
+  assert.match(stdout, new RegExp(`@cohesivity/init v${pkg.version.replaceAll('.', '\\.')}`));
   assert.match(stdout, /--no-plugin/);
   assert.match(stdout, /standalone skill/i);
 });
@@ -691,6 +698,75 @@ test('manifest or native delivery failures still finish tenant bootstrap and exi
   }
 });
 
+for (const scenario of [
+  {
+    label: 'accepts valid decoded content',
+    transform: (manifest) => manifest,
+    error: null,
+  },
+  {
+    label: 'rejects decoded oversize',
+    transform: (manifest) => Buffer.concat([manifest, Buffer.from('\n')]),
+    error: /plugin manifest byte size \d+ exceeds pinned \d+/i,
+  },
+  {
+    label: 'rejects decoded length mismatch',
+    transform: (manifest) => manifest.subarray(0, manifest.length - 1),
+    error: /plugin manifest byte size \d+ does not match pinned \d+/i,
+  },
+  {
+    label: 'rejects decoded hash mismatch',
+    transform: (manifest) => {
+      const changed = Buffer.from(manifest);
+      changed[changed.length - 1] ^= 1;
+      return changed;
+    },
+    error: /plugin manifest SHA-256 does not match its pin/i,
+  },
+]) {
+  test(`gzip manifest ${scenario.label} despite compressed Content-Length`, async () => {
+    await withStubOrigin(async (base, seen, _reqs, plugins) => {
+      const decoded = scenario.transform(plugins.manifest);
+      assert.notEqual(gzipSync(decoded, { mtime: 0 }).length, decoded.length, 'transfer and decoded lengths differ');
+
+      const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+      const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+      const emptyPath = join(home, 'empty-bin');
+      try {
+        mkdirSync(join(home, '.cursor'), { recursive: true });
+        mkdirSync(emptyPath);
+        const options = {
+          plugins: true,
+          env: { PATH: emptyPath, COHESIVITY_PLUGIN_MANIFEST_PIN: plugins.pin },
+        };
+        if (!scenario.error) {
+          const out = await runCli(base, home, project, [], options);
+          assert.match(out, /Cursor integration installed or reconciled/);
+          assert.ok(existsSync(join(home, '.cursor', 'plugins', 'local', 'cohesivity', 'plugin.json')));
+        } else {
+          await assert.rejects(
+            runCli(base, home, project, [], options),
+            (error) => {
+              assert.equal(error.code, 1, `${scenario.label} must fail closed`);
+              assert.match(error.stderr, scenario.error);
+              return true;
+            },
+          );
+          assert.ok(!existsSync(join(home, '.cursor', 'plugins', 'local', 'cohesivity')));
+        }
+        assert.deepEqual(seen, [null], 'tenant bootstrap still completes');
+        assert.ok(existsSync(join(project, '.cohesivity')));
+      } finally {
+        rmSync(home, { recursive: true, force: true });
+        rmSync(project, { recursive: true, force: true });
+      }
+    }, {
+      gzipManifest: true,
+      manifestBody: scenario.transform,
+    });
+  });
+}
+
 test('unsafe archives are rejected before atomic replacement while tenant bootstrap completes', async () => {
   await withStubOrigin(async (base, seen, _reqs, plugins) => {
     const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
@@ -781,7 +857,7 @@ test('artifact byte-size and SHA-256 pins are enforced before extraction', async
 });
 
 test('plugin pins are immutable and config formats are never regex-edited', () => {
-  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{[\s\S]*621beb765f34ea082ad8a9ff59488cd432aa0099[\s\S]*403ecc59865f752fdc7f647104d6006588be834a1e285c94f2f70e18144e34cd[\s\S]*\}\);/);
+  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/e30d49df188184b9ee4b477210a3a4fdcca47f85\/artifacts\/v2\.1\.1\/install-manifest\.v1\.json',\s*manifestBytes: 9610,\s*manifestSha256: 'a6be8cac99534be83e52b3c97a93bea5667c3458737eebc8d5c4bd5c44f953bb',\s*\}\);/);
   assert.match(cli, /spawnSync\(command, args, \{[\s\S]*shell: false/);
   assert.doesNotMatch(cli, /config\.(?:json|toml|yaml)[\s\S]{0,100}replace\(/i);
   assert.match(cli, /artifact link .* is not allowed/);

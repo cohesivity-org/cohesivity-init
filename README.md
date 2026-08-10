@@ -62,29 +62,35 @@ and existing project pointers follow the same flow as plain init.
 Plugin delivery begins with one immutable, pinned manifest. The installer
 checks the manifest's exact byte size and SHA-256 before parsing it, then checks
 the exact byte size and SHA-256 of every selected artifact before extraction.
+These checks apply to the decoded response bytes: HTTP transfer `Content-Length`
+can describe compressed bytes and is not used as a decoded-size claim. Reads
+stop as soon as decoded content exceeds its pin, before hashing or parsing.
 The manifest schema is:
 
 ```json
 {
   "schema_version": 1,
-  "version": "2.1.0",
+  "version": "2.1.1",
   "packages": [
     {
       "client": "portable",
       "immutable_url": "https://immutable.example/portable.tar.gz",
       "size": 1234,
       "sha256": "64 lowercase hexadecimal characters",
-      "archive": "cohesivity-portable-2.1.0.tar.gz"
+      "archive": "cohesivity-portable-2.1.1.tar.gz"
     }
   ]
 }
 ```
 
-The required artifact keys are `claude`, `portable`, `codex`, `gemini`, and
-`antigravity`. Extraction rejects absolute paths, traversal, links, duplicate paths,
-special files, malformed headers, oversized content, and archives without an
-end marker. Staged portable installs replace the previous directory atomically,
-with rollback if the commit fails.
+The installer maps Claude to `claude`; Cursor, OpenClaw, and Hermes to
+`portable`; Codex to `codex`; Gemini to `gemini`; and Antigravity to
+`antigravity`. The 2.1.1 manifest also carries the direct `openai` package,
+which this marketplace-based Codex installer does not select. Extraction
+rejects absolute paths, traversal, links, duplicate paths, special files,
+malformed headers, oversized content, and archives without an end marker.
+Staged portable installs replace the previous directory atomically, with
+rollback if the commit fails.
 
 The immutable manifest commit, byte size, and SHA-256 are isolated in the
 `PLUGIN_RELEASE` block in `bin/cli.js`. Tests use the
@@ -146,7 +152,15 @@ server-issued, and not derived from hardware or user data. Delete
 | `--no-plugin` | install only the canonical standalone skill; add no plugin or MCP |
 | `--dry-run` | print exact actions with zero side effects |
 | `--base <url>` | API base for tenant bootstrap (default `https://cohesivity.ai`) |
-| `-h`, `--help` | show command help |
+| `-h`, `--help` | show command help and the exact package version |
+
+## 0.6.1 verification fixes
+
+Version 0.6.1 accepts an immutable manifest when Node has transparently decoded
+its gzip transfer and the decoded bytes match the size and SHA-256 pins. It
+still rejects decoded oversize, size mismatch, and hash mismatch, pins the final
+Cohesivity plugin 2.1.1 manifest, and makes `--help` identify the exact
+CLI/package version.
 
 ## Verifying the release
 
