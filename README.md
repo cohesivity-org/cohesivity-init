@@ -70,14 +70,14 @@ The manifest schema is:
 ```json
 {
   "schema_version": 1,
-  "version": "2.1.2",
+  "version": "2.1.3",
   "packages": [
     {
       "client": "portable",
       "immutable_url": "https://immutable.example/portable.tar.gz",
       "size": 1234,
       "sha256": "64 lowercase hexadecimal characters",
-      "archive": "cohesivity-portable-2.1.2.tar.gz"
+      "archive": "cohesivity-portable-2.1.3.tar.gz"
     }
   ]
 }
@@ -85,7 +85,7 @@ The manifest schema is:
 
 The installer maps Claude to `claude`; Cursor, OpenClaw, and Hermes to
 `portable`; Codex to `codex`; Gemini to `gemini`; and Antigravity to
-`antigravity`. The 2.1.2 manifest also carries the direct `openai` package,
+`antigravity`. The 2.1.3 manifest also carries the direct `openai` package,
 which this marketplace-based Codex installer does not select. Extraction
 rejects absolute paths, traversal, links, duplicate paths, special files,
 malformed headers, oversized content, and archives without an end marker.
@@ -153,6 +153,12 @@ server-issued, and not derived from hardware or user data. Delete
 | `--dry-run` | print exact actions with zero side effects |
 | `--base <url>` | API base for tenant bootstrap (default `https://cohesivity.ai`) |
 | `-h`, `--help` | show command help and the exact package version |
+
+## 0.6.3 MCP release metadata
+
+Version 0.6.3 pins Cohesivity plugin 2.1.3. Its local MCP initialization,
+User-Agent, generated client manifests, archive names, and package metadata all
+derive from one release version and report `2.1.3` consistently.
 
 ## 0.6.2 status projection pin
 
