@@ -44,7 +44,7 @@ import { gunzipSync } from 'node:zlib';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
-const PKG_VERSION = '0.6.3';
+const PKG_VERSION = '0.6.4';
 
 function validateArgs() {
   const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--help', '-h']);
@@ -85,9 +85,9 @@ const SKILL_URL = `https://raw.githubusercontent.com/cohesivity-org/cohesivity-s
 // after publishing a new two-commit artifact manifest from cohesivity-plugin.
 // Tests inject a complete pin with COHESIVITY_PLUGIN_MANIFEST_PIN.
 const PLUGIN_RELEASE = Object.freeze({
-  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/d773c73bbc140aefdbe5610b3b2d1c8143fad792/artifacts/v2.1.3/install-manifest.v1.json',
+  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/e5d59973bb0b2f8608085e3d54b879d5d6ed1564/artifacts/v2.1.4/install-manifest.v1.json',
   manifestBytes: 9610,
-  manifestSha256: '52642c8326edf9543eb05b52d2384fb569c11c29eec29812fe9915ed44e7e84a',
+  manifestSha256: '5cd548a006cab71bf482209ead27b15ed0a42ec13c69a8c8efdf051a23cf9b4b',
 });
 
 const ARTIFACT_KEYS = Object.freeze({
@@ -176,6 +176,8 @@ async function main() {
 // ── 1) detect clients and deliver verified integrations ──────────────────────
 const HOME = homedir();
 const CODEX_HOME = process.env.CODEX_HOME || join(HOME, '.codex');
+const DATA_HOME = process.env.XDG_DATA_HOME || join(HOME, '.local', 'share');
+const DURABLE_PLUGIN_ROOT = join(DATA_HOME, 'cohesivity', 'plugin-packages');
 const CANONICAL_SKILL_DIR = join(HOME, '.agents', 'skills', 'cohesivity');
 const POSITIVE_ANTIGRAVITY_HOMES = [
   join(HOME, '.gemini', 'antigravity'),
@@ -226,7 +228,7 @@ function detectClients() {
       id: 'antigravity', name: 'Antigravity', bin: bins.antigravity,
       detected: Boolean(bins.antigravity || hasAny(POSITIVE_ANTIGRAVITY_HOMES) || harnessIs('agy', 'antigravity')), artifact: ARTIFACT_KEYS.antigravity,
     },
-    { id: 'openclaw', name: 'OpenClaw', bin: bins.openclaw, detected: Boolean(bins.openclaw || existsSync(join(HOME, '.openclaw')) || harnessIs('openclaw')), artifact: ARTIFACT_KEYS.portable },
+    { id: 'openclaw', name: 'OpenClaw', bin: bins.openclaw, detected: Boolean(bins.openclaw || existsSync(join(HOME, '.openclaw')) || harnessIs('openclaw')), artifact: ARTIFACT_KEYS.claude },
     { id: 'hermes', name: 'Hermes', bin: bins.hermes, detected: Boolean(bins.hermes || existsSync(join(HOME, '.hermes')) || harnessIs('hermes')), artifact: ARTIFACT_KEYS.portable },
   ].filter((client) => client.detected);
 }
@@ -507,10 +509,15 @@ function resolveInside(root, path) {
 async function installForClient(client, artifact) {
   if (!artifact) throw new Error(`verified ${client.artifact} artifact is unavailable`);
   const root = artifact.root;
+  const nativeSource = ['claude', 'codex', 'gemini', 'openclaw'].includes(client.id)
+    || (client.id === 'antigravity' && client.bin)
+    ? join(DURABLE_PLUGIN_ROOT, client.id)
+    : root;
+  if (nativeSource !== root) installDirectoryAtomically(root, nativeSource);
   switch (client.id) {
     case 'claude':
       requireClientCli(client);
-      runNative(client.bin, ['plugin', 'marketplace', 'add', root, '--scope', 'user']);
+      runNative(client.bin, ['plugin', 'marketplace', 'add', nativeSource, '--scope', 'user']);
       runNative(client.bin, ['plugin', 'install', 'cohesivity@cohesivity', '--scope', 'user']);
       break;
     case 'cursor':
@@ -518,23 +525,31 @@ async function installForClient(client, artifact) {
       break;
     case 'codex':
       requireClientCli(client);
-      runNative(client.bin, ['plugin', 'marketplace', 'add', root]);
+      runNative(client.bin, ['plugin', 'marketplace', 'add', nativeSource]);
       runNative(client.bin, ['plugin', 'add', 'cohesivity@cohesivity']);
       break;
     case 'gemini':
       requireClientCli(client);
-      runNative(client.bin, ['extensions', 'install', root, '--consent']);
+      runNative(client.bin, ['extensions', 'install', nativeSource, '--consent'], {
+        ...process.env,
+        GEMINI_CLI_TRUST_WORKSPACE: 'true',
+      });
       break;
     case 'antigravity':
-      if (client.bin) runNative(client.bin, ['plugin', 'install', root]);
+      if (client.bin) runNative(client.bin, ['plugin', 'install', nativeSource]);
       else if (hasAny(POSITIVE_ANTIGRAVITY_HOMES)) {
         installDirectoryAtomically(root, join(HOME, '.gemini', 'config', 'plugins', 'cohesivity'));
       } else throw new Error('Antigravity CLI is not on PATH and no positive Antigravity home was found');
       break;
     case 'openclaw':
       requireClientCli(client);
-      runNative(client.bin, ['plugins', 'install', root, '--force']);
+      runNative(client.bin, ['plugins', 'install', 'cohesivity', '--marketplace', nativeSource, '--force']);
       runNative(client.bin, ['plugins', 'enable', 'cohesivity']);
+      runNative(client.bin, ['mcp', 'set', 'cohesivity', JSON.stringify({
+        url: MCP_URL,
+        transport: 'streamable-http',
+        auth: 'oauth',
+      })]);
       break;
     case 'hermes':
       installDirectoryAtomically(root, join(HOME, '.hermes', 'plugins', 'cohesivity'));
@@ -550,8 +565,8 @@ function requireClientCli(client) {
   if (!client.bin) throw new Error('client state exists but its native CLI is not on PATH');
 }
 
-function runNative(command, args) {
-  const result = spawnSync(command, args, { cwd: CWD, encoding: 'utf8', env: process.env, shell: false, timeout: 120000 });
+function runNative(command, args, env = process.env) {
+  const result = spawnSync(command, args, { cwd: CWD, encoding: 'utf8', env, shell: false, timeout: 120000 });
   if (result.error) throw new Error(`${formatCommand(command, args)} failed (${result.error.message})`);
   if (result.status !== 0) {
     const detail = String(result.stderr || result.stdout || '').trim().replace(/\s+/g, ' ').slice(0, 300);
@@ -612,23 +627,30 @@ function describeDryRunPluginDelivery(clients) {
   }
   for (const client of clients) {
     const root = `<verified:${client.artifact}>`;
+    const nativeRoot = displayPath(join(DURABLE_PLUGIN_ROOT, client.id));
     if (client.id === 'claude') {
-      act(`run ${formatCommand(client.bin || 'claude', ['plugin', 'marketplace', 'add', root, '--scope', 'user'])}`);
+      act(`atomically replace ${nativeRoot} from ${root}`);
+      act(`run ${formatCommand(client.bin || 'claude', ['plugin', 'marketplace', 'add', nativeRoot, '--scope', 'user'])}`);
       act(`run ${formatCommand(client.bin || 'claude', ['plugin', 'install', 'cohesivity@cohesivity', '--scope', 'user'])}`);
     } else if (client.id === 'cursor') {
       act(`atomically replace ${displayPath(join(HOME, '.cursor', 'plugins', 'local', 'cohesivity'))} from ${root}`);
     } else if (client.id === 'codex') {
-      act(`run ${formatCommand(client.bin || 'codex', ['plugin', 'marketplace', 'add', root])}`);
+      act(`atomically replace ${nativeRoot} from ${root}`);
+      act(`run ${formatCommand(client.bin || 'codex', ['plugin', 'marketplace', 'add', nativeRoot])}`);
       act(`run ${formatCommand(client.bin || 'codex', ['plugin', 'add', 'cohesivity@cohesivity'])}`);
     } else if (client.id === 'gemini') {
-      act(`run ${formatCommand(client.bin || 'gemini', ['extensions', 'install', root, '--consent'])}`);
+      act(`atomically replace ${nativeRoot} from ${root}`);
+      act(`run ${formatCommand(client.bin || 'gemini', ['extensions', 'install', nativeRoot, '--consent'])}`);
     } else if (client.id === 'antigravity' && client.bin) {
-      act(`run ${formatCommand(client.bin, ['plugin', 'install', root])}`);
+      act(`atomically replace ${nativeRoot} from ${root}`);
+      act(`run ${formatCommand(client.bin, ['plugin', 'install', nativeRoot])}`);
     } else if (client.id === 'antigravity') {
       act(`atomically replace ${displayPath(join(HOME, '.gemini', 'config', 'plugins', 'cohesivity'))} from ${root}`);
     } else if (client.id === 'openclaw') {
-      act(`run ${formatCommand(client.bin || 'openclaw', ['plugins', 'install', root, '--force'])}`);
+      act(`atomically replace ${nativeRoot} from ${root}`);
+      act(`run ${formatCommand(client.bin || 'openclaw', ['plugins', 'install', 'cohesivity', '--marketplace', nativeRoot, '--force'])}`);
       act(`run ${formatCommand(client.bin || 'openclaw', ['plugins', 'enable', 'cohesivity'])}`);
+      act(`run ${formatCommand(client.bin || 'openclaw', ['mcp', 'set', 'cohesivity', JSON.stringify({ url: MCP_URL, transport: 'streamable-http', auth: 'oauth' })])}`);
     } else if (client.id === 'hermes') {
       act(`atomically replace ${displayPath(join(HOME, '.hermes', 'plugins', 'cohesivity'))} from ${root}`);
       act(`run ${formatCommand(client.bin || 'hermes', ['plugins', 'enable', 'cohesivity'])}`);
@@ -648,7 +670,7 @@ function printClientInstructions(clients, adapters) {
       gemini: 'Gemini: restart the CLI, then run /mcp auth cohesivity if authentication is required.',
       antigravity: 'Antigravity: restart, open /mcp (or Installed MCP Servers), and authenticate Cohesivity.',
       openclaw: 'OpenClaw: restart the Gateway if it did not auto-restart, then run openclaw mcp login cohesivity.',
-      hermes: 'Hermes: restart, then run hermes mcp login cohesivity from a fresh terminal. OAuth works only when the endpoint supports Dynamic Client Registration; otherwise Hermes needs a pre-registered OAuth client.',
+      hermes: 'Hermes: restart, copy the exact qualified remote server name Hermes reports into a native mcp_servers owner override that repeats the URL and sets auth: oauth, then run hermes mcp login <qualified-server-name>. Dynamic Client Registration must be supported; otherwise Hermes needs a pre-registered OAuth client.',
     }[client.id];
     console.log(`  - ${instruction}`);
   }
