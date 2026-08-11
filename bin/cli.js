@@ -44,7 +44,7 @@ import { gunzipSync } from 'node:zlib';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
-const PKG_VERSION = '0.6.5';
+const PKG_VERSION = '0.6.6';
 
 function validateArgs() {
   const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--help', '-h']);
@@ -176,6 +176,7 @@ async function main() {
 // ── 1) detect clients and deliver verified integrations ──────────────────────
 const HOME = homedir();
 const CODEX_HOME = process.env.CODEX_HOME || join(HOME, '.codex');
+const HERMES_HOME = process.env.HERMES_HOME || join(HOME, '.hermes');
 const DATA_HOME = process.env.XDG_DATA_HOME || join(HOME, '.local', 'share');
 const DURABLE_PLUGIN_ROOT = join(DATA_HOME, 'cohesivity', 'plugin-packages');
 const CANONICAL_SKILL_DIR = join(HOME, '.agents', 'skills', 'cohesivity');
@@ -554,11 +555,38 @@ async function installForClient(client, artifact) {
         auth: 'oauth',
       })]);
       break;
-    case 'hermes':
-      installDirectoryAtomically(root, join(HOME, '.hermes', 'plugins', 'cohesivity'));
+    case 'hermes': {
       requireClientCli(client);
-      runNative(client.bin, ['plugins', 'enable', 'cohesivity']);
+      const skill = join(nativeSource, 'skills', 'cohesivity');
+      const packagedServer = join(nativeSource, 'mcp', 'project-bootstrap.mjs');
+      const localServer = join(HERMES_HOME, 'mcp', 'cohesivity', 'project-bootstrap.mjs');
+      if (!existsSync(join(skill, 'SKILL.md')) || !existsSync(packagedServer)) throw new Error('verified portable artifact is missing its Hermes skill or local MCP server');
+      installDirectoryAtomically(skill, join(HERMES_HOME, 'skills', 'cohesivity'));
+      installFileAtomically(localServer, readFileSync(packagedServer, 'utf8'));
+      const importRoot = mkdtempSync(join(tmpdir(), 'cohesivity-hermes-import-'));
+      try {
+        mkdirSync(join(importRoot, '.claude'), { mode: 0o700 });
+        writeFileSync(join(importRoot, '.claude.json'), JSON.stringify({
+          mcpServers: {
+            'cohesivity-local': { command: process.execPath, args: [localServer] },
+            cohesivity: { url: MCP_URL },
+          },
+        }), { mode: 0o600 });
+        runNative(client.bin, ['import-agent', 'claude-code', '--source', join(importRoot, '.claude'), '--overwrite', '--yes']);
+        runNative(client.bin, ['config', 'set', 'mcp_servers.cohesivity-local.enabled', 'true']);
+        runNative(client.bin, ['config', 'set', 'mcp_servers.cohesivity.auth', 'oauth']);
+        runNative(client.bin, ['config', 'set', 'mcp_servers.cohesivity.enabled', 'true']);
+        const local = runNativeJson(client.bin, ['config', 'get', 'mcp_servers.cohesivity-local', '--json']);
+        const remote = runNativeJson(client.bin, ['config', 'get', 'mcp_servers.cohesivity', '--json']);
+        if (local?.command !== process.execPath || JSON.stringify(local.args) !== JSON.stringify([localServer]) || local?.enabled !== true
+          || remote?.url !== MCP_URL || remote?.auth !== 'oauth' || remote?.enabled !== true) {
+          throw new Error('Hermes native MCP reconciliation did not persist the exact Cohesivity entries');
+        }
+      } finally {
+        rmSync(importRoot, { recursive: true, force: true });
+      }
       break;
+    }
     case 'opencode': {
       requireClientCli(client);
       const skill = join(nativeSource, 'skills', 'cohesivity', 'SKILL.md');
@@ -585,6 +613,13 @@ function runNative(command, args, env = process.env) {
     const detail = String(result.stderr || result.stdout || '').trim().replace(/\s+/g, ' ').slice(0, 300);
     throw new Error(`${formatCommand(command, args)} exited ${result.status}${detail ? `: ${detail}` : ''}`);
   }
+  return result;
+}
+
+function runNativeJson(command, args) {
+  const result = runNative(command, args);
+  try { return JSON.parse(String(result.stdout || '').trim()); }
+  catch { throw new Error(`${formatCommand(command, args)} returned invalid JSON`); }
 }
 
 function installDirectoryAtomically(source, destination) {
@@ -667,8 +702,12 @@ function describeDryRunPluginDelivery(clients) {
       act(`run ${formatCommand(client.bin || 'openclaw', ['plugins', 'enable', 'cohesivity'])}`);
       act(`run ${formatCommand(client.bin || 'openclaw', ['mcp', 'set', 'cohesivity', JSON.stringify({ url: MCP_URL, transport: 'streamable-http', auth: 'oauth' })])}`);
     } else if (client.id === 'hermes') {
-      act(`atomically replace ${displayPath(join(HOME, '.hermes', 'plugins', 'cohesivity'))} from ${root}`);
-      act(`run ${formatCommand(client.bin || 'hermes', ['plugins', 'enable', 'cohesivity'])}`);
+      act(`atomically replace ${displayPath(join(HERMES_HOME, 'skills', 'cohesivity'))} from ${root}/skills/cohesivity`);
+      act(`atomically replace ${displayPath(join(HERMES_HOME, 'mcp', 'cohesivity', 'project-bootstrap.mjs'))} from ${root}/mcp/project-bootstrap.mjs`);
+      act(`run ${formatCommand(client.bin || 'hermes', ['import-agent', 'claude-code', '--source', '<generated-cohesivity-import>/.claude', '--overwrite', '--yes'])}`);
+      act(`run ${formatCommand(client.bin || 'hermes', ['config', 'set', 'mcp_servers.cohesivity-local.enabled', 'true'])}`);
+      act(`run ${formatCommand(client.bin || 'hermes', ['config', 'set', 'mcp_servers.cohesivity.auth', 'oauth'])}`);
+      act(`run ${formatCommand(client.bin || 'hermes', ['config', 'set', 'mcp_servers.cohesivity.enabled', 'true'])}`);
     } else if (client.id === 'opencode') {
       act(`atomically replace ${nativeRoot} from ${root}`);
       act(`atomically install ${displayPath(join(CANONICAL_SKILL_DIR, 'SKILL.md'))} from ${nativeRoot}`);
@@ -690,7 +729,7 @@ function printClientInstructions(clients, adapters) {
       gemini: 'Gemini: restart the CLI, then run /mcp auth cohesivity if authentication is required.',
       antigravity: 'Antigravity: restart, open /mcp (or Installed MCP Servers), and authenticate Cohesivity.',
       openclaw: 'OpenClaw: restart the Gateway if it did not auto-restart, then run openclaw mcp login cohesivity.',
-      hermes: 'Hermes: restart, copy the exact qualified remote server name Hermes reports into a native mcp_servers owner override that repeats the URL and sets auth: oauth, then run hermes mcp login <qualified-server-name>. Dynamic Client Registration must be supported; otherwise Hermes needs a pre-registered OAuth client.',
+      hermes: 'Hermes: restart the client; the local bootstrap tools need no login, and hermes mcp login cohesivity starts OAuth through Dynamic Client Registration only when management tools are needed.',
       opencode: 'OpenCode: restart the client; the local bootstrap tools need no login, and opencode mcp auth cohesivity starts OAuth only when management tools are needed.',
     }[client.id];
     console.log(`  - ${instruction}`);

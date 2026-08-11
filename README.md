@@ -25,7 +25,7 @@ Portable directories are staged and atomically replaced.
 | Gemini | first run: `gemini extensions install <verified-local-gemini-root> --consent`; rerun: `gemini extensions update cohesivity` |
 | Antigravity | `agy plugin install <verified-local-root>`; if `agy` is absent, atomically copy to `~/.gemini/config/plugins/cohesivity` only when an Antigravity-specific home is present |
 | OpenClaw | install `cohesivity` through the verified Claude marketplace root, enable it, then save the remote Streamable HTTP OAuth MCP |
-| Hermes | atomically copy to `~/.hermes/plugins/cohesivity`, then `hermes plugins enable cohesivity` |
+| Hermes | install the canonical skill and local server in Hermes-owned paths, import both MCP entries through `hermes import-agent ... --overwrite --yes`, then set the two enabled flags and dormant OAuth metadata with `hermes config set` |
 | OpenCode | preserve the verified portable package, install its skill to `~/.agents/skills/cohesivity`, then use `opencode mcp add` for the local six-tool server and remote management server |
 
 Detection is additive rather than first-match-wins. A Claude home does not stop
@@ -51,9 +51,10 @@ different boundaries: the public documentation server at
 `https://cohesivity.ai/mcp` needs no login, the installed local project-bootstrap
 server needs no login, and `https://cohesivity.ai/mcp/manage` requires OAuth for
 account-scoped management. OpenCode users start that last flow explicitly with
-`opencode mcp auth cohesivity`. Hermes remote MCP OAuth is qualified: automatic
-login works only when the endpoint supports Dynamic Client Registration;
-otherwise Hermes needs a pre-registered OAuth client.
+`opencode mcp auth cohesivity`. Hermes uses the exact native server name
+`cohesivity`; `hermes mcp login cohesivity` starts its management OAuth flow.
+The Cohesivity endpoint advertises Dynamic Client Registration, so Hermes does
+not need a pre-registered OAuth client.
 
 ## Standalone skill only
 
@@ -164,6 +165,16 @@ server-issued, and not derived from hardware or user data. Delete
 | `--dry-run` | print exact actions with zero side effects |
 | `--base <url>` | API base for tenant bootstrap (default `https://cohesivity.ai`) |
 | `-h`, `--help` | show command help and the exact package version |
+
+## 0.6.6 released Hermes adapter
+
+Version 0.6.6 replaces portable-plugin enablement with surfaces shipped by the
+immutable Hermes 0.20.0 release. It keeps plugin 2.1.4's verified local server in
+Hermes's native MCP directory, installs the canonical skill in its skill directory,
+and feeds the local and remote entries through Hermes's own noninteractive
+Claude import and structural config commands. Reruns overwrite only the two
+Cohesivity MCP names, preserve unrelated Hermes settings, verify the exact
+persisted command/URL/auth values, and never start OAuth.
 
 ## 0.6.5 OpenCode and repeat-safe Gemini delivery
 
