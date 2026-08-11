@@ -22,15 +22,19 @@ Portable directories are staged and atomically replaced.
 | Claude | `claude plugin marketplace add <verified-local-root> --scope user`, then `claude plugin install cohesivity@cohesivity --scope user` |
 | Cursor | atomically copy the portable plugin to `~/.cursor/plugins/local/cohesivity` |
 | Codex | `codex plugin marketplace add <verified-local-marketplace>`, then `codex plugin add cohesivity@cohesivity` |
-| Gemini | `gemini extensions install <verified-local-gemini-root> --consent` |
+| Gemini | first run: `gemini extensions install <verified-local-gemini-root> --consent`; rerun: `gemini extensions update cohesivity` |
 | Antigravity | `agy plugin install <verified-local-root>`; if `agy` is absent, atomically copy to `~/.gemini/config/plugins/cohesivity` only when an Antigravity-specific home is present |
 | OpenClaw | install `cohesivity` through the verified Claude marketplace root, enable it, then save the remote Streamable HTTP OAuth MCP |
 | Hermes | atomically copy to `~/.hermes/plugins/cohesivity`, then `hermes plugins enable cohesivity` |
+| OpenCode | preserve the verified portable package, install its skill to `~/.agents/skills/cohesivity`, then use `opencode mcp add` for the local six-tool server and remote management server |
 
 Detection is additive rather than first-match-wins. A Claude home does not stop
-Cursor, Codex, Gemini, Antigravity, OpenClaw, or Hermes from also being
+Cursor, Codex, Gemini, Antigravity, OpenClaw, Hermes, or OpenCode from also being
 configured. A shared `~/.gemini` directory alone is not treated as positive
-Antigravity detection.
+Antigravity detection. Claude, Codex, Gemini, OpenClaw, Hermes, OpenCode, and
+fallback adapters require their executable; stale configuration homes are not
+installation evidence. Cursor's client-owned home and Antigravity's documented
+product-specific homes remain positive contracts for their desktop surfaces.
 
 Known adapters without a Cohesivity plugin package receive the canonical
 standalone skill plus the remote MCP endpoint
@@ -40,9 +44,14 @@ Copilot CLI, VS Code, Cline CLI, and Grok. It does not modify JSON, TOML, or YAM
 configuration with regular expressions.
 
 The installer never starts OAuth or opens a browser. It prints the relevant
-restart and authentication steps after delivery. Hermes remote MCP OAuth is
-qualified: automatic login works only when the endpoint supports Dynamic Client
-Registration; otherwise Hermes needs a pre-registered OAuth client.
+restart and authentication steps after delivery. Three MCP surfaces have
+different boundaries: the public documentation server at
+`https://cohesivity.ai/mcp` needs no login, the installed local project-bootstrap
+server needs no login, and `https://cohesivity.ai/mcp/manage` requires OAuth for
+account-scoped management. OpenCode users start that last flow explicitly with
+`opencode mcp auth cohesivity`. Hermes remote MCP OAuth is qualified: automatic
+login works only when the endpoint supports Dynamic Client Registration;
+otherwise Hermes needs a pre-registered OAuth client.
 
 ## Standalone skill only
 
@@ -153,6 +162,23 @@ server-issued, and not derived from hardware or user data. Delete
 | `--dry-run` | print exact actions with zero side effects |
 | `--base <url>` | API base for tenant bootstrap (default `https://cohesivity.ai`) |
 | `-h`, `--help` | show command help and the exact package version |
+
+## 0.6.5 OpenCode and repeat-safe Gemini delivery
+
+Version 0.6.5 recognizes OpenCode only from its executable, preserves the
+verified portable package under the Cohesivity data directory, installs the
+canonical skill in OpenCode's documented global `~/.agents/skills` surface, and
+uses OpenCode's native noninteractive `mcp add` commands for both the local
+six-tool server and exact remote management endpoint. Reruns replace those
+entries structurally through OpenCode's own JSONC-aware config writer and never
+start OAuth.
+
+Gemini now installs the extension on the first run and uses
+`gemini extensions update cohesivity` once the native installed-extension
+directory exists. Both child commands scope `GEMINI_CLI_TRUST_WORKSPACE=true`
+to that process, so a repeat run succeeds without writing a persistent broad
+workspace-trust setting. Stale client configuration homes no longer count as
+installed executable-backed clients.
 
 ## 0.6.4 durable native marketplaces
 

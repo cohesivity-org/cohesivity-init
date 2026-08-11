@@ -132,7 +132,7 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.equal(
     m[1],
     'f97e0d2ac8a653b7d54d1bb6e70aee78a8887e60',
-    'init 0.6.4 must install generated skill mirror version 84fbece3c00b',
+    'init 0.6.5 must install generated skill mirror version 84fbece3c00b',
   );
   assert.match(
     m[1],
@@ -206,6 +206,7 @@ function pluginFixture(base, overrides = {}) {
     portable: { entries: [
       { name: 'plugin.json', body: '{"name":"cohesivity"}\n' },
       { name: 'skills/cohesivity/SKILL.md', body: TEST_SKILL },
+      { name: 'mcp/project-bootstrap.mjs', body: '#!/usr/bin/env node\n' },
     ] },
     codex: { entries: [
       { name: '.agents/plugins/marketplace.json', body: '{"name":"cohesivity"}\n' },
@@ -333,10 +334,11 @@ function fakeClients(home, names, failing = null) {
   for (const name of names) {
     const file = join(bin, name);
     writeFileSync(file, `#!${process.execPath}\n` +
-      `const { appendFileSync } = require('node:fs');\n` +
+      `const { appendFileSync, mkdirSync } = require('node:fs');\n` +
       `const { basename } = require('node:path');\n` +
       `const row = { command: basename(process.argv[1]), args: process.argv.slice(2) };\n` +
       `if (row.command === 'gemini' && process.env.GEMINI_CLI_TRUST_WORKSPACE) row.workspaceTrust = process.env.GEMINI_CLI_TRUST_WORKSPACE;\n` +
+      `if (row.command === 'gemini' && row.args[0] === 'extensions' && row.args[1] === 'install') mkdirSync(process.env.HOME + '/.gemini/extensions/cohesivity', { recursive: true });\n` +
       `appendFileSync(process.env.COMMAND_LOG, JSON.stringify(row) + '\\n');\n` +
       `if (process.env.FAIL_COMMAND === row.command) { console.error('fixture delivery failure'); process.exit(23); }\n`);
     chmodSync(file, 0o755);
@@ -542,6 +544,42 @@ test('plain mode with no detected client installs the canonical standalone skill
   });
 });
 
+test('stale CLI home directories do not masquerade as installed clients', async () => {
+  await withStubOrigin(async (base, seen, _reqs, plugins) => {
+    const root = mkdtempSync(join(tmpdir(), 'coh-stale-homes-'));
+    const home = join(root, 'home');
+    const project = join(root, 'project');
+    const emptyPath = join(root, 'empty-bin');
+    try {
+      for (const path of [
+        join(home, '.claude'),
+        join(home, '.codex'),
+        join(home, '.gemini', 'extensions'),
+        join(home, '.openclaw'),
+        join(home, '.hermes'),
+        join(home, '.config', 'opencode'),
+        join(home, '.copilot'),
+        join(home, '.vscode'),
+        join(home, '.cline'),
+        join(home, '.grok'),
+      ]) mkdirSync(path, { recursive: true });
+      mkdirSync(project);
+      mkdirSync(emptyPath);
+
+      const out = await runCli(base, home, project, [], {
+        plugins: true,
+        env: { PATH: emptyPath, COHESIVITY_PLUGIN_MANIFEST_PIN: plugins.pin },
+      });
+
+      assert.deepEqual(seen, [null]);
+      assert.match(out, /no supported client detected/i);
+      assert.equal(readFileSync(join(home, '.agents', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
 test('plain mode detects every supported client independently and uses the Task 17 adapter matrix', async () => {
   await withStubOrigin(async (base, seen, _reqs, plugins, requests) => {
     const root = mkdtempSync(join(tmpdir(), 'coh-matrix-'));
@@ -549,7 +587,7 @@ test('plain mode detects every supported client independently and uses the Task 
     const project = join(root, 'project with spaces');
     mkdirSync(home, { recursive: true });
     mkdirSync(project, { recursive: true });
-    const fake = fakeClients(home, ['claude', 'cursor', 'codex', 'gemini', 'agy', 'openclaw', 'hermes']);
+    const fake = fakeClients(home, ['claude', 'cursor', 'codex', 'gemini', 'agy', 'openclaw', 'hermes', 'opencode']);
     try {
       for (const destination of [
         join(home, '.cursor', 'plugins', 'local', 'cohesivity'),
@@ -584,7 +622,13 @@ test('plain mode detects every supported client independently and uses the Task 
       assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'enable', 'cohesivity'])));
       assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['mcp', 'set', 'cohesivity', JSON.stringify({ url: 'https://cohesivity.ai/mcp/manage', transport: 'streamable-http', auth: 'oauth' })])));
       assert.ok(commands.some((row) => row.command === 'hermes' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'enable', 'cohesivity'])));
-      for (const client of ['claude', 'codex', 'gemini', 'antigravity', 'openclaw']) {
+      assert.ok(commands.some((row) => row.command === 'opencode' && JSON.stringify(row.args) === JSON.stringify([
+        'mcp', 'add', 'cohesivity-local', '--', 'node', join(durableRoot, 'opencode', 'mcp', 'project-bootstrap.mjs'),
+      ])));
+      assert.ok(commands.some((row) => row.command === 'opencode' && JSON.stringify(row.args) === JSON.stringify([
+        'mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp/manage',
+      ])));
+      for (const client of ['claude', 'codex', 'gemini', 'antigravity', 'openclaw', 'opencode']) {
         assert.ok(existsSync(join(durableRoot, client)), `${client} keeps a durable verified package root`);
       }
       assert.ok(existsSync(join(durableRoot, 'openclaw', '.claude-plugin', 'marketplace.json')), 'OpenClaw receives the Claude marketplace package');
@@ -593,12 +637,68 @@ test('plain mode detects every supported client independently and uses the Task 
       assert.equal(readFileSync(join(home, '.hermes', 'plugins', 'cohesivity', 'plugin.json'), 'utf8'), '{"name":"cohesivity"}\n');
       assert.ok(!existsSync(join(home, '.cursor', 'plugins', 'local', 'cohesivity', 'stale.txt')), 'Cursor replacement drops stale files');
       assert.ok(!existsSync(join(home, '.hermes', 'plugins', 'cohesivity', 'stale.txt')), 'Hermes replacement drops stale files');
-      assert.ok(!existsSync(join(home, '.agents', 'skills', 'cohesivity')), 'supported packages, not a duplicate standalone skill');
+      assert.equal(readFileSync(join(home, '.agents', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL, 'OpenCode discovers the canonical global skill');
       assert.doesNotMatch(commands.map((row) => row.args.join(' ')).join('\n'), /\blogin\b/i, 'OAuth login is deferred');
       assert.match(out, /Hermes:.*Dynamic Client Registration/i, 'Hermes caveat is explicit');
       assert.match(out, /Hermes:.*qualified remote server name.*owner override/i, 'Hermes names its required OAuth handoff');
       assert.doesNotMatch(out, /hermes mcp login cohesivity\b/i, 'Hermes portable servers do not use the unqualified package name');
+      assert.match(out, /OpenCode:.*opencode mcp auth cohesivity/i);
       assert.match(out, /restart\/authentication steps/i);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+test('Gemini installs once and uses its native update path on rerun', async () => {
+  await withStubOrigin(async (base, seen, _reqs, plugins) => {
+    const root = mkdtempSync(join(tmpdir(), 'coh-gemini-idempotent-'));
+    const home = join(root, 'home');
+    const project = join(root, 'project');
+    mkdirSync(home, { recursive: true });
+    mkdirSync(project);
+    const fake = fakeClients(home, ['gemini']);
+    try {
+      const options = { plugins: true, env: { ...fake.env, COHESIVITY_PLUGIN_MANIFEST_PIN: plugins.pin } };
+      await runCli(base, home, project, [], options);
+      await runCli(base, home, project, [], options);
+
+      assert.deepEqual(seen, [null], 'the second run reuses the original tenant');
+      const gemini = readCommands(fake.commandLog).filter((row) => row.command === 'gemini');
+      assert.deepEqual(gemini.map((row) => row.args), [
+        ['extensions', 'install', join(home, '.local', 'share', 'cohesivity', 'plugin-packages', 'gemini'), '--consent'],
+        ['extensions', 'update', 'cohesivity'],
+      ]);
+      assert.ok(gemini.every((row) => row.workspaceTrust === 'true'));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+test('OpenCode native MCP reconciliation is idempotent and never starts OAuth', async () => {
+  await withStubOrigin(async (base, seen, _reqs, plugins) => {
+    const root = mkdtempSync(join(tmpdir(), 'coh-opencode-idempotent-'));
+    const home = join(root, 'home');
+    const project = join(root, 'project');
+    mkdirSync(home, { recursive: true });
+    mkdirSync(project);
+    const fake = fakeClients(home, ['opencode']);
+    try {
+      const options = { plugins: true, env: { ...fake.env, COHESIVITY_PLUGIN_MANIFEST_PIN: plugins.pin } };
+      await runCli(base, home, project, [], options);
+      await runCli(base, home, project, [], options);
+
+      assert.deepEqual(seen, [null], 'the second run reuses the original tenant');
+      const durable = join(home, '.local', 'share', 'cohesivity', 'plugin-packages', 'opencode');
+      assert.deepEqual(readCommands(fake.commandLog).map((row) => row.args), [
+        ['mcp', 'add', 'cohesivity-local', '--', 'node', join(durable, 'mcp', 'project-bootstrap.mjs')],
+        ['mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp/manage'],
+        ['mcp', 'add', 'cohesivity-local', '--', 'node', join(durable, 'mcp', 'project-bootstrap.mjs')],
+        ['mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp/manage'],
+      ]);
+      assert.equal(readFileSync(join(home, '.agents', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL);
+      assert.ok(readCommands(fake.commandLog).every((row) => !row.args.includes('auth')));
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
