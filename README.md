@@ -24,7 +24,7 @@ Portable directories are staged and atomically replaced.
 | Codex | `codex plugin marketplace add <verified-local-marketplace>`, then `codex plugin add cohesivity@cohesivity` |
 | Gemini | `gemini extensions install <verified-local-gemini-root> --consent` |
 | Antigravity | `agy plugin install <verified-local-root>`; if `agy` is absent, atomically copy to `~/.gemini/config/plugins/cohesivity` only when an Antigravity-specific home is present |
-| OpenClaw | `openclaw plugins install <verified-local-portable-root> --force`, then enable `cohesivity` |
+| OpenClaw | install `cohesivity` through the verified Claude marketplace root, enable it, then save the remote Streamable HTTP OAuth MCP |
 | Hermes | atomically copy to `~/.hermes/plugins/cohesivity`, then `hermes plugins enable cohesivity` |
 
 Detection is additive rather than first-match-wins. A Claude home does not stop
@@ -70,22 +70,22 @@ The manifest schema is:
 ```json
 {
   "schema_version": 1,
-  "version": "2.1.3",
+  "version": "2.1.4",
   "packages": [
     {
       "client": "portable",
       "immutable_url": "https://immutable.example/portable.tar.gz",
       "size": 1234,
       "sha256": "64 lowercase hexadecimal characters",
-      "archive": "cohesivity-portable-2.1.3.tar.gz"
+      "archive": "cohesivity-portable-2.1.4.tar.gz"
     }
   ]
 }
 ```
 
-The installer maps Claude to `claude`; Cursor, OpenClaw, and Hermes to
+The installer maps Claude and OpenClaw to `claude`; Cursor and Hermes to
 `portable`; Codex to `codex`; Gemini to `gemini`; and Antigravity to
-`antigravity`. The 2.1.3 manifest also carries the direct `openai` package,
+`antigravity`. The 2.1.4 manifest also carries the direct `openai` package,
 which this marketplace-based Codex installer does not select. Extraction
 rejects absolute paths, traversal, links, duplicate paths, special files,
 malformed headers, oversized content, and archives without an end marker.
@@ -161,6 +161,21 @@ Version 0.6.4 copies each verified native-client package to
 invoking Claude, Codex, Gemini, Antigravity, or OpenClaw. Those clients may
 retain the source path in their marketplace or extension configuration, so the
 installer never points them at extraction directories it deletes on exit.
+It pins Cohesivity plugin 2.1.4 and accepts Gemini's native workspace trust
+prompt only for the extension-install child process without writing a global
+trust override.
+
+OpenClaw receives the verified Claude marketplace bundle through its documented
+marketplace adapter, which preserves the `cohesivity` identity and projects the
+skill and local MCP server. The installer also saves the remote server through
+`openclaw mcp set` with Streamable HTTP and OAuth, without starting login.
+
+Hermes qualifies portable MCP server names from the discovered install
+identity. On restart, copy the exact qualified remote name Hermes reports into
+a native `mcp_servers` owner override that repeats the Cohesivity URL and sets
+`auth: oauth`, then run `hermes mcp login <qualified-server-name>`. Do not use
+the unqualified package name; Hermes owner config replaces rather than augments
+the portable entry.
 
 ## 0.6.3 MCP release metadata
 

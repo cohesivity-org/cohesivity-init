@@ -336,6 +336,7 @@ function fakeClients(home, names, failing = null) {
       `const { appendFileSync } = require('node:fs');\n` +
       `const { basename } = require('node:path');\n` +
       `const row = { command: basename(process.argv[1]), args: process.argv.slice(2) };\n` +
+      `if (row.command === 'gemini' && process.env.GEMINI_CLI_TRUST_WORKSPACE) row.workspaceTrust = process.env.GEMINI_CLI_TRUST_WORKSPACE;\n` +
       `appendFileSync(process.env.COMMAND_LOG, JSON.stringify(row) + '\\n');\n` +
       `if (process.env.FAIL_COMMAND === row.command) { console.error('fixture delivery failure'); process.exit(23); }\n`);
     chmodSync(file, 0o755);
@@ -575,22 +576,28 @@ test('plain mode detects every supported client independently and uses the Task 
       const codexMarket = commands.find((row) => row.command === 'codex' && row.args.slice(0, 3).join(' ') === 'plugin marketplace add');
       assert.equal(codexMarket.args[3], join(durableRoot, 'codex'));
       assert.ok(commands.some((row) => row.command === 'codex' && JSON.stringify(row.args) === JSON.stringify(['plugin', 'add', 'cohesivity@cohesivity'])));
-      assert.ok(commands.some((row) => row.command === 'gemini' && JSON.stringify(row.args) === JSON.stringify(['extensions', 'install', join(durableRoot, 'gemini'), '--consent'])));
+      assert.ok(commands.some((row) => row.command === 'gemini'
+        && JSON.stringify(row.args) === JSON.stringify(['extensions', 'install', join(durableRoot, 'gemini'), '--consent'])
+        && row.workspaceTrust === 'true'));
       assert.ok(commands.some((row) => row.command === 'agy' && JSON.stringify(row.args) === JSON.stringify(['plugin', 'install', join(durableRoot, 'antigravity')])));
-      assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'install', join(durableRoot, 'openclaw'), '--force'])));
+      assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'install', 'cohesivity', '--marketplace', join(durableRoot, 'openclaw'), '--force'])));
       assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'enable', 'cohesivity'])));
+      assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['mcp', 'set', 'cohesivity', JSON.stringify({ url: 'https://cohesivity.ai/mcp/manage', transport: 'streamable-http', auth: 'oauth' })])));
       assert.ok(commands.some((row) => row.command === 'hermes' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'enable', 'cohesivity'])));
       for (const client of ['claude', 'codex', 'gemini', 'antigravity', 'openclaw']) {
         assert.ok(existsSync(join(durableRoot, client)), `${client} keeps a durable verified package root`);
       }
+      assert.ok(existsSync(join(durableRoot, 'openclaw', '.claude-plugin', 'marketplace.json')), 'OpenClaw receives the Claude marketplace package');
       assert.doesNotMatch(commands.map((row) => row.args.join(' ')).join('\n'), /cohesivity-plugin-.*\/extracted/, 'native clients never persist temporary extraction paths');
       assert.equal(readFileSync(join(home, '.cursor', 'plugins', 'local', 'cohesivity', 'plugin.json'), 'utf8'), '{"name":"cohesivity"}\n');
       assert.equal(readFileSync(join(home, '.hermes', 'plugins', 'cohesivity', 'plugin.json'), 'utf8'), '{"name":"cohesivity"}\n');
       assert.ok(!existsSync(join(home, '.cursor', 'plugins', 'local', 'cohesivity', 'stale.txt')), 'Cursor replacement drops stale files');
       assert.ok(!existsSync(join(home, '.hermes', 'plugins', 'cohesivity', 'stale.txt')), 'Hermes replacement drops stale files');
       assert.ok(!existsSync(join(home, '.agents', 'skills', 'cohesivity')), 'supported packages, not a duplicate standalone skill');
-      assert.doesNotMatch(commands.map((row) => row.args.join(' ')).join('\n'), /login|oauth/i, 'OAuth is deferred');
+      assert.doesNotMatch(commands.map((row) => row.args.join(' ')).join('\n'), /\blogin\b/i, 'OAuth login is deferred');
       assert.match(out, /Hermes:.*Dynamic Client Registration/i, 'Hermes caveat is explicit');
+      assert.match(out, /Hermes:.*qualified remote server name.*owner override/i, 'Hermes names its required OAuth handoff');
+      assert.doesNotMatch(out, /hermes mcp login cohesivity\b/i, 'Hermes portable servers do not use the unqualified package name');
       assert.match(out, /restart\/authentication steps/i);
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -863,7 +870,7 @@ test('artifact byte-size and SHA-256 pins are enforced before extraction', async
 });
 
 test('plugin pins are immutable and config formats are never regex-edited', () => {
-  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/d773c73bbc140aefdbe5610b3b2d1c8143fad792\/artifacts\/v2\.1\.3\/install-manifest\.v1\.json',\s*manifestBytes: 9610,\s*manifestSha256: '52642c8326edf9543eb05b52d2384fb569c11c29eec29812fe9915ed44e7e84a',\s*\}\);/);
+  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/e5d59973bb0b2f8608085e3d54b879d5d6ed1564\/artifacts\/v2\.1\.4\/install-manifest\.v1\.json',\s*manifestBytes: 9610,\s*manifestSha256: '5cd548a006cab71bf482209ead27b15ed0a42ec13c69a8c8efdf051a23cf9b4b',\s*\}\);/);
   assert.match(cli, /spawnSync\(command, args, \{[\s\S]*shell: false/);
   assert.doesNotMatch(cli, /config\.(?:json|toml|yaml)[\s\S]{0,100}replace\(/i);
   assert.match(cli, /artifact link .* is not allowed/);
