@@ -580,6 +580,36 @@ test('stale CLI home directories do not masquerade as installed clients', async 
   });
 });
 
+test('attribution labels never select an integration adapter', async () => {
+  await withStubOrigin(async (base, seen, _reqs, plugins) => {
+    for (const runtime of ['cursor', 'antigravity', 'grok']) {
+      const root = mkdtempSync(join(tmpdir(), `coh-attribution-only-${runtime}-`));
+      const home = join(root, 'home');
+      const project = join(root, 'project');
+      const emptyPath = join(root, 'empty-bin');
+      mkdirSync(home, { recursive: true });
+      mkdirSync(project);
+      mkdirSync(emptyPath);
+      try {
+        const out = await runCli(base, home, project, [], {
+          plugins: true,
+          env: {
+            PATH: emptyPath,
+            COHESIVITY_RUNTIME: runtime,
+            COHESIVITY_PLUGIN_MANIFEST_PIN: plugins.pin,
+          },
+        });
+
+        assert.match(out, /no supported client detected/i, `${runtime} is attribution, not installation evidence`);
+        assert.ok(!existsSync(join(home, 'native-commands.jsonl')));
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    }
+    assert.deepEqual(seen, [null, null, null]);
+  });
+});
+
 test('plain mode detects every supported client independently and uses the Task 17 adapter matrix', async () => {
   await withStubOrigin(async (base, seen, _reqs, plugins, requests) => {
     const root = mkdtempSync(join(tmpdir(), 'coh-matrix-'));

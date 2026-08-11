@@ -35,6 +35,8 @@ Antigravity detection. Claude, Codex, Gemini, OpenClaw, Hermes, OpenCode, and
 fallback adapters require their executable; stale configuration homes are not
 installation evidence. Cursor's client-owned home and Antigravity's documented
 product-specific homes remain positive contracts for their desktop surfaces.
+The measured harness label is attribution only and never selects a delivery
+adapter.
 
 Known adapters without a Cohesivity plugin package receive the canonical
 standalone skill plus the remote MCP endpoint

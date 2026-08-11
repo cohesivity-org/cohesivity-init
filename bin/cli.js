@@ -215,10 +215,9 @@ function detectClients() {
     hermes: executable(['hermes']),
     opencode: executable(['opencode']),
   };
-  const harnessIs = (...names) => names.includes(HARNESS);
   return [
     { id: 'claude', name: 'Claude', bin: bins.claude, detected: Boolean(bins.claude), artifact: ARTIFACT_KEYS.claude },
-    { id: 'cursor', name: 'Cursor', bin: bins.cursor, detected: Boolean(bins.cursor || existsSync(join(HOME, '.cursor')) || harnessIs('cursor', 'cursor-agent')), artifact: ARTIFACT_KEYS.portable },
+    { id: 'cursor', name: 'Cursor', bin: bins.cursor, detected: Boolean(bins.cursor || existsSync(join(HOME, '.cursor'))), artifact: ARTIFACT_KEYS.portable },
     { id: 'codex', name: 'Codex', bin: bins.codex, detected: Boolean(bins.codex), artifact: ARTIFACT_KEYS.codex },
     {
       id: 'gemini', name: 'Gemini', bin: bins.gemini,
@@ -227,7 +226,7 @@ function detectClients() {
     },
     {
       id: 'antigravity', name: 'Antigravity', bin: bins.antigravity,
-      detected: Boolean(bins.antigravity || hasAny(POSITIVE_ANTIGRAVITY_HOMES) || harnessIs('agy', 'antigravity')), artifact: ARTIFACT_KEYS.antigravity,
+      detected: Boolean(bins.antigravity || hasAny(POSITIVE_ANTIGRAVITY_HOMES)), artifact: ARTIFACT_KEYS.antigravity,
     },
     { id: 'openclaw', name: 'OpenClaw', bin: bins.openclaw, detected: Boolean(bins.openclaw), artifact: ARTIFACT_KEYS.claude },
     { id: 'hermes', name: 'Hermes', bin: bins.hermes, detected: Boolean(bins.hermes), artifact: ARTIFACT_KEYS.portable },
@@ -253,7 +252,7 @@ const FALLBACK_ADAPTERS = [
 function detectFallbackAdapters() {
   return FALLBACK_ADAPTERS.map((adapter) => {
     const bin = executable(adapter.bins);
-    return { ...adapter, bin, detected: Boolean(bin || adapter.bins.includes(HARNESS)) };
+    return { ...adapter, bin, detected: Boolean(bin) };
   }).filter((adapter) => adapter.detected);
 }
 
