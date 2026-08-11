@@ -132,7 +132,7 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.equal(
     m[1],
     'f97e0d2ac8a653b7d54d1bb6e70aee78a8887e60',
-    'init 0.6.5 must install generated skill mirror version 84fbece3c00b',
+    'init 0.6.6 must install generated skill mirror version 84fbece3c00b',
   );
   assert.match(
     m[1],
@@ -339,6 +339,14 @@ function fakeClients(home, names, failing = null) {
       `const row = { command: basename(process.argv[1]), args: process.argv.slice(2) };\n` +
       `if (row.command === 'gemini' && process.env.GEMINI_CLI_TRUST_WORKSPACE) row.workspaceTrust = process.env.GEMINI_CLI_TRUST_WORKSPACE;\n` +
       `if (row.command === 'gemini' && row.args[0] === 'extensions' && row.args[1] === 'install') mkdirSync(process.env.HOME + '/.gemini/extensions/cohesivity', { recursive: true });\n` +
+      `if (row.command === 'hermes' && row.args[0] === 'config' && row.args[1] === 'get') {\n` +
+      `  const key = row.args[2];\n` +
+      `  const values = {\n` +
+      `    'mcp_servers.cohesivity-local': { command: process.execPath, args: [process.env.HOME + '/.hermes/mcp/cohesivity/project-bootstrap.mjs'], enabled: true },\n` +
+      `    'mcp_servers.cohesivity': { url: 'https://cohesivity.ai/mcp/manage', auth: 'oauth', enabled: true },\n` +
+      `  };\n` +
+      `  process.stdout.write(row.args.includes('--json') ? JSON.stringify(values[key]) : String(values[key]));\n` +
+      `}\n` +
       `appendFileSync(process.env.COMMAND_LOG, JSON.stringify(row) + '\\n');\n` +
       `if (process.env.FAIL_COMMAND === row.command) { console.error('fixture delivery failure'); process.exit(23); }\n`);
     chmodSync(file, 0o755);
@@ -621,7 +629,7 @@ test('plain mode detects every supported client independently and uses the Task 
     try {
       for (const destination of [
         join(home, '.cursor', 'plugins', 'local', 'cohesivity'),
-        join(home, '.hermes', 'plugins', 'cohesivity'),
+        join(home, '.hermes', 'skills', 'cohesivity'),
       ]) {
         mkdirSync(destination, { recursive: true });
         writeFileSync(join(destination, 'stale.txt'), 'remove me\n');
@@ -651,7 +659,11 @@ test('plain mode detects every supported client independently and uses the Task 
       assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'install', 'cohesivity', '--marketplace', join(durableRoot, 'openclaw'), '--force'])));
       assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'enable', 'cohesivity'])));
       assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['mcp', 'set', 'cohesivity', JSON.stringify({ url: 'https://cohesivity.ai/mcp/manage', transport: 'streamable-http', auth: 'oauth' })])));
-      assert.ok(commands.some((row) => row.command === 'hermes' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'enable', 'cohesivity'])));
+      assert.ok(commands.some((row) => row.command === 'hermes' && row.args[0] === 'import-agent'
+        && row.args[1] === 'claude-code' && row.args.includes('--overwrite') && row.args.includes('--yes')));
+      assert.ok(commands.some((row) => row.command === 'hermes' && JSON.stringify(row.args) === JSON.stringify([
+        'config', 'set', 'mcp_servers.cohesivity.auth', 'oauth',
+      ])));
       assert.ok(commands.some((row) => row.command === 'opencode' && JSON.stringify(row.args) === JSON.stringify([
         'mcp', 'add', 'cohesivity-local', '--', 'node', join(durableRoot, 'opencode', 'mcp', 'project-bootstrap.mjs'),
       ])));
@@ -661,17 +673,17 @@ test('plain mode detects every supported client independently and uses the Task 
       for (const client of ['claude', 'codex', 'gemini', 'antigravity', 'openclaw', 'opencode']) {
         assert.ok(existsSync(join(durableRoot, client)), `${client} keeps a durable verified package root`);
       }
+      assert.ok(!existsSync(join(durableRoot, 'hermes')), 'Hermes receives only its owner skill and MCP paths');
       assert.ok(existsSync(join(durableRoot, 'openclaw', '.claude-plugin', 'marketplace.json')), 'OpenClaw receives the Claude marketplace package');
       assert.doesNotMatch(commands.map((row) => row.args.join(' ')).join('\n'), /cohesivity-plugin-.*\/extracted/, 'native clients never persist temporary extraction paths');
       assert.equal(readFileSync(join(home, '.cursor', 'plugins', 'local', 'cohesivity', 'plugin.json'), 'utf8'), '{"name":"cohesivity"}\n');
-      assert.equal(readFileSync(join(home, '.hermes', 'plugins', 'cohesivity', 'plugin.json'), 'utf8'), '{"name":"cohesivity"}\n');
+      assert.equal(readFileSync(join(home, '.hermes', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL);
+      assert.ok(existsSync(join(home, '.hermes', 'mcp', 'cohesivity', 'project-bootstrap.mjs')));
       assert.ok(!existsSync(join(home, '.cursor', 'plugins', 'local', 'cohesivity', 'stale.txt')), 'Cursor replacement drops stale files');
-      assert.ok(!existsSync(join(home, '.hermes', 'plugins', 'cohesivity', 'stale.txt')), 'Hermes replacement drops stale files');
+      assert.ok(!existsSync(join(home, '.hermes', 'skills', 'cohesivity', 'stale.txt')), 'Hermes skill replacement drops stale files');
       assert.equal(readFileSync(join(home, '.agents', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL, 'OpenCode discovers the canonical global skill');
       assert.doesNotMatch(commands.map((row) => row.args.join(' ')).join('\n'), /\blogin\b/i, 'OAuth login is deferred');
-      assert.match(out, /Hermes:.*Dynamic Client Registration/i, 'Hermes caveat is explicit');
-      assert.match(out, /Hermes:.*qualified remote server name.*owner override/i, 'Hermes names its required OAuth handoff');
-      assert.doesNotMatch(out, /hermes mcp login cohesivity\b/i, 'Hermes portable servers do not use the unqualified package name');
+      assert.match(out, /Hermes:.*hermes mcp login cohesivity/i, 'Hermes names its native OAuth handoff');
       assert.match(out, /OpenCode:.*opencode mcp auth cohesivity/i);
       assert.match(out, /restart\/authentication steps/i);
     } finally {
@@ -729,6 +741,41 @@ test('OpenCode native MCP reconciliation is idempotent and never starts OAuth', 
       ]);
       assert.equal(readFileSync(join(home, '.agents', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL);
       assert.ok(readCommands(fake.commandLog).every((row) => !row.args.includes('auth')));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+test('Hermes native skill and MCP reconciliation is idempotent', async () => {
+  await withStubOrigin(async (base, seen, _reqs, plugins) => {
+    const root = mkdtempSync(join(tmpdir(), 'coh-hermes-idempotent-'));
+    const home = join(root, 'home');
+    const project = join(root, 'project');
+    mkdirSync(home, { recursive: true });
+    mkdirSync(project);
+    const fake = fakeClients(home, ['hermes']);
+    try {
+      const options = { plugins: true, env: { ...fake.env, COHESIVITY_PLUGIN_MANIFEST_PIN: plugins.pin } };
+      await runCli(base, home, project, [], options);
+      await runCli(base, home, project, [], options);
+
+      assert.deepEqual(seen, [null], 'the second run reuses the original tenant');
+      const hermes = readCommands(fake.commandLog).filter((row) => row.command === 'hermes');
+      assert.equal(hermes.filter((row) => row.args[0] === 'import-agent').length, 2);
+      assert.equal(hermes.filter((row) => JSON.stringify(row.args) === JSON.stringify([
+        'config', 'set', 'mcp_servers.cohesivity-local.enabled', 'true',
+      ])).length, 2);
+      assert.equal(hermes.filter((row) => JSON.stringify(row.args) === JSON.stringify([
+        'config', 'set', 'mcp_servers.cohesivity.auth', 'oauth',
+      ])).length, 2);
+      assert.equal(hermes.filter((row) => JSON.stringify(row.args) === JSON.stringify([
+        'config', 'set', 'mcp_servers.cohesivity.enabled', 'true',
+      ])).length, 2);
+      assert.equal(hermes.filter((row) => row.args[0] === 'config' && row.args[1] === 'get').length, 4);
+      assert.ok(hermes.every((row) => row.args[0] !== 'plugins'));
+      assert.equal(readFileSync(join(home, '.hermes', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL);
+      assert.ok(existsSync(join(home, '.hermes', 'mcp', 'cohesivity', 'project-bootstrap.mjs')));
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
