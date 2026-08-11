@@ -44,7 +44,7 @@ import { gunzipSync } from 'node:zlib';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
-const PKG_VERSION = '0.6.4';
+const PKG_VERSION = '0.6.5';
 
 function validateArgs() {
   const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--help', '-h']);
@@ -213,37 +213,38 @@ function detectClients() {
     antigravity: executable(['agy']),
     openclaw: executable(['openclaw']),
     hermes: executable(['hermes']),
+    opencode: executable(['opencode']),
   };
-  const harnessIs = (...names) => names.includes(HARNESS);
   return [
-    { id: 'claude', name: 'Claude', bin: bins.claude, detected: Boolean(bins.claude || existsSync(join(HOME, '.claude')) || harnessIs('claude')), artifact: ARTIFACT_KEYS.claude },
-    { id: 'cursor', name: 'Cursor', bin: bins.cursor, detected: Boolean(bins.cursor || existsSync(join(HOME, '.cursor')) || harnessIs('cursor', 'cursor-agent')), artifact: ARTIFACT_KEYS.portable },
-    { id: 'codex', name: 'Codex', bin: bins.codex, detected: Boolean(bins.codex || existsSync(CODEX_HOME) || harnessIs('codex')), artifact: ARTIFACT_KEYS.codex },
+    { id: 'claude', name: 'Claude', bin: bins.claude, detected: Boolean(bins.claude), artifact: ARTIFACT_KEYS.claude },
+    { id: 'cursor', name: 'Cursor', bin: bins.cursor, detected: Boolean(bins.cursor || existsSync(join(HOME, '.cursor'))), artifact: ARTIFACT_KEYS.portable },
+    { id: 'codex', name: 'Codex', bin: bins.codex, detected: Boolean(bins.codex), artifact: ARTIFACT_KEYS.codex },
     {
       id: 'gemini', name: 'Gemini', bin: bins.gemini,
-      detected: Boolean(bins.gemini || hasAny([join(HOME, '.gemini', 'settings.json'), join(HOME, '.gemini', 'extensions')]) || harnessIs('gemini')),
+      detected: Boolean(bins.gemini),
       artifact: ARTIFACT_KEYS.gemini,
     },
     {
       id: 'antigravity', name: 'Antigravity', bin: bins.antigravity,
-      detected: Boolean(bins.antigravity || hasAny(POSITIVE_ANTIGRAVITY_HOMES) || harnessIs('agy', 'antigravity')), artifact: ARTIFACT_KEYS.antigravity,
+      detected: Boolean(bins.antigravity || hasAny(POSITIVE_ANTIGRAVITY_HOMES)), artifact: ARTIFACT_KEYS.antigravity,
     },
-    { id: 'openclaw', name: 'OpenClaw', bin: bins.openclaw, detected: Boolean(bins.openclaw || existsSync(join(HOME, '.openclaw')) || harnessIs('openclaw')), artifact: ARTIFACT_KEYS.claude },
-    { id: 'hermes', name: 'Hermes', bin: bins.hermes, detected: Boolean(bins.hermes || existsSync(join(HOME, '.hermes')) || harnessIs('hermes')), artifact: ARTIFACT_KEYS.portable },
+    { id: 'openclaw', name: 'OpenClaw', bin: bins.openclaw, detected: Boolean(bins.openclaw), artifact: ARTIFACT_KEYS.claude },
+    { id: 'hermes', name: 'Hermes', bin: bins.hermes, detected: Boolean(bins.hermes), artifact: ARTIFACT_KEYS.portable },
+    { id: 'opencode', name: 'OpenCode', bin: bins.opencode, detected: Boolean(bins.opencode), artifact: ARTIFACT_KEYS.portable },
   ].filter((client) => client.detected);
 }
 
 const FALLBACK_ADAPTERS = [
-  { id: 'copilot', name: 'GitHub Copilot CLI', homes: [join(HOME, '.copilot')], bins: ['copilot'], args: [
+  { id: 'copilot', name: 'GitHub Copilot CLI', bins: ['copilot'], args: [
     'mcp', 'add', '--transport', 'http', 'cohesivity', MCP_URL,
   ] },
-  { id: 'vscode', name: 'VS Code', homes: [join(HOME, '.vscode')], bins: ['code'], args: [
+  { id: 'vscode', name: 'VS Code', bins: ['code'], args: [
     '--add-mcp', JSON.stringify({ name: 'cohesivity', type: 'http', url: MCP_URL }),
   ] },
-  { id: 'cline', name: 'Cline CLI', homes: [join(HOME, '.cline')], bins: ['cline'], args: [
+  { id: 'cline', name: 'Cline CLI', bins: ['cline'], args: [
     'mcp', 'add', 'cohesivity', MCP_URL, '--type', 'http',
   ] },
-  { id: 'grok', name: 'Grok', homes: [join(HOME, '.grok')], bins: ['grok'], args: [
+  { id: 'grok', name: 'Grok', bins: ['grok'], args: [
     'mcp', 'add', '--transport', 'http', 'cohesivity', MCP_URL,
   ] },
 ];
@@ -251,7 +252,7 @@ const FALLBACK_ADAPTERS = [
 function detectFallbackAdapters() {
   return FALLBACK_ADAPTERS.map((adapter) => {
     const bin = executable(adapter.bins);
-    return { ...adapter, bin, detected: Boolean(bin || hasAny(adapter.homes) || adapter.bins.includes(HARNESS)) };
+    return { ...adapter, bin, detected: Boolean(bin) };
   }).filter((adapter) => adapter.detected);
 }
 
@@ -509,7 +510,7 @@ function resolveInside(root, path) {
 async function installForClient(client, artifact) {
   if (!artifact) throw new Error(`verified ${client.artifact} artifact is unavailable`);
   const root = artifact.root;
-  const nativeSource = ['claude', 'codex', 'gemini', 'openclaw'].includes(client.id)
+  const nativeSource = ['claude', 'codex', 'gemini', 'openclaw', 'opencode'].includes(client.id)
     || (client.id === 'antigravity' && client.bin)
     ? join(DURABLE_PLUGIN_ROOT, client.id)
     : root;
@@ -530,7 +531,9 @@ async function installForClient(client, artifact) {
       break;
     case 'gemini':
       requireClientCli(client);
-      runNative(client.bin, ['extensions', 'install', nativeSource, '--consent'], {
+      runNative(client.bin, existsSync(join(HOME, '.gemini', 'extensions', 'cohesivity'))
+        ? ['extensions', 'update', 'cohesivity']
+        : ['extensions', 'install', nativeSource, '--consent'], {
         ...process.env,
         GEMINI_CLI_TRUST_WORKSPACE: 'true',
       });
@@ -556,6 +559,16 @@ async function installForClient(client, artifact) {
       requireClientCli(client);
       runNative(client.bin, ['plugins', 'enable', 'cohesivity']);
       break;
+    case 'opencode': {
+      requireClientCli(client);
+      const skill = join(nativeSource, 'skills', 'cohesivity', 'SKILL.md');
+      const localServer = join(nativeSource, 'mcp', 'project-bootstrap.mjs');
+      if (!existsSync(skill) || !existsSync(localServer)) throw new Error('verified portable artifact is missing its OpenCode skill or local MCP server');
+      installFileAtomically(join(CANONICAL_SKILL_DIR, 'SKILL.md'), readFileSync(skill, 'utf8'));
+      runNative(client.bin, ['mcp', 'add', 'cohesivity-local', '--', 'node', localServer]);
+      runNative(client.bin, ['mcp', 'add', 'cohesivity', '--url', MCP_URL]);
+      break;
+    }
     default:
       throw new Error(`unknown client ${client.id}`);
   }
@@ -640,7 +653,9 @@ function describeDryRunPluginDelivery(clients) {
       act(`run ${formatCommand(client.bin || 'codex', ['plugin', 'add', 'cohesivity@cohesivity'])}`);
     } else if (client.id === 'gemini') {
       act(`atomically replace ${nativeRoot} from ${root}`);
-      act(`run ${formatCommand(client.bin || 'gemini', ['extensions', 'install', nativeRoot, '--consent'])}`);
+      act(`run ${formatCommand(client.bin || 'gemini', existsSync(join(HOME, '.gemini', 'extensions', 'cohesivity'))
+        ? ['extensions', 'update', 'cohesivity']
+        : ['extensions', 'install', nativeRoot, '--consent'])}`);
     } else if (client.id === 'antigravity' && client.bin) {
       act(`atomically replace ${nativeRoot} from ${root}`);
       act(`run ${formatCommand(client.bin, ['plugin', 'install', nativeRoot])}`);
@@ -654,6 +669,11 @@ function describeDryRunPluginDelivery(clients) {
     } else if (client.id === 'hermes') {
       act(`atomically replace ${displayPath(join(HOME, '.hermes', 'plugins', 'cohesivity'))} from ${root}`);
       act(`run ${formatCommand(client.bin || 'hermes', ['plugins', 'enable', 'cohesivity'])}`);
+    } else if (client.id === 'opencode') {
+      act(`atomically replace ${nativeRoot} from ${root}`);
+      act(`atomically install ${displayPath(join(CANONICAL_SKILL_DIR, 'SKILL.md'))} from ${nativeRoot}`);
+      act(`run ${formatCommand(client.bin || 'opencode', ['mcp', 'add', 'cohesivity-local', '--', 'node', join(DURABLE_PLUGIN_ROOT, 'opencode', 'mcp', 'project-bootstrap.mjs')])}`);
+      act(`run ${formatCommand(client.bin || 'opencode', ['mcp', 'add', 'cohesivity', '--url', MCP_URL])}`);
     }
   }
 }
@@ -671,6 +691,7 @@ function printClientInstructions(clients, adapters) {
       antigravity: 'Antigravity: restart, open /mcp (or Installed MCP Servers), and authenticate Cohesivity.',
       openclaw: 'OpenClaw: restart the Gateway if it did not auto-restart, then run openclaw mcp login cohesivity.',
       hermes: 'Hermes: restart, copy the exact qualified remote server name Hermes reports into a native mcp_servers owner override that repeats the URL and sets auth: oauth, then run hermes mcp login <qualified-server-name>. Dynamic Client Registration must be supported; otherwise Hermes needs a pre-registered OAuth client.',
+      opencode: 'OpenCode: restart the client; the local bootstrap tools need no login, and opencode mcp auth cohesivity starts OAuth only when management tools are needed.',
     }[client.id];
     console.log(`  - ${instruction}`);
   }
@@ -875,7 +896,7 @@ Options:
   -h, --help          show this help
 
 What it does:
-  1. Detects Claude, Cursor, Codex, Gemini, Antigravity, OpenClaw, and Hermes
+  1. Detects Claude, Cursor, Codex, Gemini, Antigravity, OpenClaw, Hermes, and OpenCode
      independently and installs each client's native or portable plugin package
      (known adapters without a plugin receive the standalone skill plus MCP)
   2. Creates or reuses a project tenant  ->  ./.cohesivity  (gitignored)
