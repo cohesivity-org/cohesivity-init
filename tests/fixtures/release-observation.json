@@ -1,5 +1,5 @@
 {
-  "observedAt": "2026-09-15T14:24:27.765Z",
+  "observedAt": "2026-09-15T14:37:03.689Z",
   "mode": "source candidate",
   "installer": {
     "version": "0.7.0",
@@ -36,6 +36,22 @@
   },
   "npmPluginVersion": "3.0.5",
   "shellPluginVersion": "3.0.5",
+  "npmClientVersions": {
+    "portable": "3.0.5",
+    "claude": "3.0.5",
+    "codex": "3.0.5",
+    "gemini": "3.0.5",
+    "antigravity": "3.0.5",
+    "openai": "3.0.5"
+  },
+  "shellClientVersions": {
+    "portable": "3.0.5",
+    "claude": "3.0.5",
+    "codex": "3.0.5",
+    "gemini": "3.0.5",
+    "antigravity": "3.0.5",
+    "openai": "3.0.5"
+  },
   "npmSkills": {
     "portable": {
       "size": 14616,

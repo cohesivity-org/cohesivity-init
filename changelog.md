@@ -151,3 +151,29 @@ publication. The existing tag-triggered publication remains separately required.
   client configuration, or authentication state was created or changed.
 - All 58 tests pass with `node --test`; verifier syntax and `git diff --check`
   pass on Node 24.8.0.
+
+## 2026-09-15 — Verify packaged client versions
+
+### Why
+Greptile identified that the release comparison trusted the npm manifest's
+aggregate version. An older client archive with unchanged skill bytes could
+pass that check, and the offline observation did not bind the installer version.
+
+### What changed
+- Read each downloaded client's own metadata and MCP `SERVER_VERSION`, require
+  them to agree, and compare them with the release version for npm and quickstart.
+  Antigravity's manifest intentionally omits a version, so use its packaged MCP
+  version. Do not execute the packaged code.
+- Record those client versions in the refreshed observation and bind its
+  installer version in the source regression. Add tests for an old client hidden
+  behind a current manifest, missing versions, and disagreeing metadata/server
+  versions; document the Antigravity exception.
+
+### CICD classification
+Docs / scripts / tests only. No installer behavior, consent policy, CI workflow,
+publication, runtime release, or deployment changes.
+
+### Verification
+- New version regressions failed before implementation and pass after it.
+- The live 0.7.0 source comparison passes with every client reporting 3.0.5.
+- All 60 tests and `git diff --check` pass locally on Node 24.8.0.

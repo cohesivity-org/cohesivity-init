@@ -53,6 +53,8 @@ export function verifyRelease(value) {
     check(same(skill, value.canonicalSkill), `${name} differs from the live canonical skill`);
   }
   for (const client of CLIENTS) {
+    check(value.npmClientVersions?.[client] === value.npmPluginVersion, `${client} npm package version differs from manifest`);
+    check(value.shellClientVersions?.[client] === value.shellPluginVersion, `${client} quickstart package version differs from root package`);
     const npm = value.npmSkills[client];
     const shell = value.shellSkills[client];
     check(npm && shell, `${client} skill is missing from a delivery path`);
@@ -113,6 +115,24 @@ function member(files, path) {
   return value;
 }
 
+export function inspectClientVersion(files, client, prefix = '') {
+  const paths = {
+    portable: 'plugin.json', claude: '.claude-plugin/plugin.json',
+    codex: 'plugins/cohesivity/.codex-plugin/plugin.json', gemini: 'gemini-extension.json',
+    antigravity: 'plugin.json', openai: '.codex-plugin/plugin.json',
+  };
+  if (!paths[client]) throw new Error(`unsupported client: ${client}`);
+  const serverPath = client === 'codex' ? 'plugins/cohesivity/mcp/project-bootstrap.mjs' : 'mcp/project-bootstrap.mjs';
+  const serverVersion = capture(member(files, `${prefix}${serverPath}`).toString(), /^export const SERVER_VERSION = [\"']([^\"']+)[\"'];$/m, `${client} server version`);
+  const metadata = JSON.parse(member(files, `${prefix}${paths[client]}`).toString());
+  // Antigravity's native manifest deliberately has no version field. Its
+  // packaged MCP server carries the release version instead.
+  if (client === 'antigravity') return serverVersion;
+  if (typeof metadata.version !== 'string' || !metadata.version) throw new Error(`${client} package version missing`);
+  if (metadata.version !== serverVersion) throw new Error(`${client} package and MCP server versions differ`);
+  return metadata.version;
+}
+
 export async function collectRelease({ source } = {}) {
   let installerBytes;
   let npmVersion;
@@ -151,7 +171,9 @@ export async function collectRelease({ source } = {}) {
     antigravity: 'packages/antigravity/skills/cohesivity/SKILL.md', openai: 'packages/openai/skills/cohesivity/SKILL.md',
   };
   const shellSkills = Object.fromEntries(CLIENTS.map((client) => [client, fingerprint(member(shellFiles, `${root}/${shellPaths[client]}`))]));
+  const shellClientVersions = Object.fromEntries(CLIENTS.map((client) => [client, inspectClientVersion(shellFiles, client, `${root}/${client === 'portable' ? '' : `packages/${client}/`}`)]));
   const npmSkills = {};
+  const npmClientVersions = {};
   for (const client of CLIENTS) {
     const entries = manifest.packages.filter((entry) => entry.client === client);
     if (entries.length !== 1) throw new Error(`expected one ${client} package`);
@@ -160,6 +182,7 @@ export async function collectRelease({ source } = {}) {
     verifyPin(archive, entry, `${client} npm archive`);
     const files = readTarGzip(archive);
     const path = client === 'codex' ? 'plugins/cohesivity/skills/cohesivity/SKILL.md' : 'skills/cohesivity/SKILL.md';
+    npmClientVersions[client] = inspectClientVersion(files, client);
     const skill = member(files, path);
     verifyPin(skill, entry.files.find((file) => file.path === path), `${client} npm skill`);
     npmSkills[client] = fingerprint(skill);
@@ -167,7 +190,7 @@ export async function collectRelease({ source } = {}) {
   return {
     observedAt: new Date().toISOString(), mode: source ? 'source candidate' : 'published npm latest', npmTarball,
     installer, quickstart, canonicalSkill: fingerprint(canonicalBytes), npmSkill: fingerprint(npmSkillBytes), shellSkill: fingerprint(shellSkillBytes),
-    npmPluginVersion: manifest.version, shellPluginVersion, npmSkills, shellSkills,
+    npmPluginVersion: manifest.version, shellPluginVersion, npmClientVersions, shellClientVersions, npmSkills, shellSkills,
   };
 }
 
