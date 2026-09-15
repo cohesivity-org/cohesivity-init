@@ -26,7 +26,7 @@ Portable directories are staged and atomically replaced.
 | Antigravity | `agy plugin install <verified-local-root>`; if `agy` is absent, atomically copy to `~/.gemini/config/plugins/cohesivity` only when an Antigravity-specific home is present |
 | OpenClaw | install `cohesivity` through the verified Claude marketplace root, enable it, then save the remote Streamable HTTP OAuth MCP |
 | Hermes | install the canonical skill and local server in Hermes-owned paths, import both MCP entries through `hermes import-agent ... --overwrite --yes`, then set the two enabled flags and dormant OAuth metadata with `hermes config set` |
-| OpenCode | preserve the verified portable package, install its skill to `~/.agents/skills/cohesivity`, then use `opencode mcp add` for the local six-tool server and remote management server |
+| OpenCode | preserve the verified portable package, install its skill to `~/.agents/skills/cohesivity`, then use `opencode mcp add` for the local four-tool server and remote management server |
 
 Detection is additive rather than first-match-wins. A Claude home does not stop
 Cursor, Codex, Gemini, Antigravity, OpenClaw, Hermes, or OpenCode from also being
@@ -82,14 +82,14 @@ The manifest schema is:
 ```json
 {
   "schema_version": 1,
-  "version": "2.1.5",
+  "version": "3.0.5",
   "packages": [
     {
       "client": "portable",
       "immutable_url": "https://immutable.example/portable.tar.gz",
       "size": 1234,
       "sha256": "64 lowercase hexadecimal characters",
-      "archive": "cohesivity-portable-2.1.5.tar.gz"
+      "archive": "cohesivity-portable-3.0.5.tar.gz"
     }
   ]
 }
@@ -97,7 +97,7 @@ The manifest schema is:
 
 The installer maps Claude and OpenClaw to `claude`; Cursor and Hermes to
 `portable`; Codex to `codex`; Gemini to `gemini`; and Antigravity to
-`antigravity`. The 2.1.5 manifest also carries the direct `openai` package,
+`antigravity`. The 3.0.5 manifest also carries the direct `openai` package,
 which this marketplace-based Codex installer does not select. Extraction
 rejects absolute paths, traversal, links, duplicate paths, special files,
 malformed headers, oversized content, and archives without an end marker.
@@ -165,6 +165,29 @@ server-issued, and not derived from hardware or user data. Delete
 | `--dry-run` | print exact actions with zero side effects |
 | `--base <url>` | API base for tenant bootstrap (default `https://cohesivity.ai`) |
 | `-h`, `--help` | show command help and the exact package version |
+
+## 0.7.0 four-tool bootstrap interface
+
+Version 0.7.0 pins the published Cohesivity plugin 3.0.5. This is a breaking
+change from 0.6.7's six-tool local interface: the installed server exposes only
+`create_tenant`, `claim_tenant`, `tenant_status`, and `provision_resource`.
+Single and bulk provisioning share `provision_resource`, replacing the separate
+`bulk_provision_resources` tool. Deprovisioning is outside the four-tool MCP
+interface; do not bypass the skill's MCP-only control-plane mutation policy
+with direct HTTP requests.
+
+Mutating local tool calls now require literal `confirmed: true`, an argument
+that plugin 2.1.5 did not accept. Pass it only when the current user request
+explicitly authorizes the exact action; otherwise ask first. Client adapters,
+initializer tenant bootstrap, and OAuth handling are unchanged. The remote
+management connection keeps its existing URL; this npm release does not deploy
+the hosted server.
+
+Standalone and fallback skill installs now pin
+`cohesivity-org/cohesivity-skill@78d6d26c09ea955e2ab2392a62d980817bcabb39`
+(metadata version `2923f0623a63`), matching the canonical skill in plugin 3.0.5.
+Those published skill bytes still name `@cohesivity/init@0.6.6` as their
+no-MCP fallback; this release does not rewrite upstream skill content.
 
 ## 0.6.7 local MCP metadata compatibility
 

@@ -55,3 +55,57 @@ Docs-only clarification; no code, package, release pin, or plugin changes.
 - All 49 initializer tests and `git diff --check` pass.
 
 Refs COH-276.
+
+## 2026-09-15 — Move init 0.7.0 to the four-tool plugin
+
+### Why
+The selected contract is four bootstrap tools for both local and hosted MCP,
+superseding the earlier decision to keep npm on the six-tool v2 plugin. Moving
+from plugin 2.1.5 to 3.0.5 removes local tool names and requires the new
+`confirmed: true` argument on mutations, so this initializer release advances
+from 0.6.7 to 0.7.0 rather than shipping another patch.
+
+### What changed
+- Update the package and CLI version to 0.7.0 and pin the already-published
+  plugin 3.0.5 manifest at `a10fde6309d99c5102d72acd867239eb40844c46`:
+  9,400 bytes, SHA-256
+  `f2ed554af17a5218d438869b6221d692de1678303fe9525f4d8f4bd79a191e30`.
+  Its immutable archive source is `49e9458d319ec0e7d8a7b47c7a859dedbfaef7f4`.
+- Align the standalone skill with plugin 3.0.5's documented upstream commit
+  `78d6d26c09ea955e2ab2392a62d980817bcabb39`, metadata version `2923f0623a63`.
+  Its 14,616 public bytes match the plugin's canonical skill SHA-256
+  `f995c85b94ac5198eb0bdb45c7847d76092f7905cb6d7802e5e0caa6c2d8e502`.
+- Update release regressions and README migration guidance. Bulk provisioning
+  moves to `provision_resource`; deprovisioning is outside the four-tool MCP.
+  Local mutations now require literal `confirmed: true`, which v2.1.5 did not
+  accept. Direct control-plane mutations remain prohibited by the published
+  skill; the migration guidance does not offer an HTTP bypass.
+- Adapters, neutral delivery fixtures, OAuth handling, and initializer tenant
+  bootstrap remain unchanged. The upstream skill's pinned init 0.6.6 no-MCP
+  fallback is documented but not rewritten; no upstream plugin or skill
+  artifacts or safety-policy changes are authored here.
+
+### CICD classification
+Docs / scripts / metadata under [cohesivity-org/docs: CICD.md](https://github.com/cohesivity-org/docs/blob/main/CICD.md);
+npm installer release inputs only. This change does not deploy the hosted MCP,
+publish npm, create a release tag, or change workflows. Hosted four-tool delivery
+is handled separately in core PR #436.
+
+### Verification
+- The package-version, skill-pin, and plugin-pin regressions all failed before
+  implementation; `node --check bin/cli.js` and `node --test` pass on Node
+  18.20.8, 22.23.2, and 24.18.0, with all 49 tests passing on each version.
+- Public HTTP retrieval verified the manifest and all six immutable archives
+  against their exact byte sizes and SHA-256 hashes. A scratch harness exercised
+  the initializer's verified extraction against those cached public bytes and
+  checked every manifest file pin. Each extracted server reports 3.0.5 and only
+  `create_tenant`, `claim_tenant`, `tenant_status`, and `provision_resource` on
+  Node 18 and 24; initialize, discovery, and ping create no project files.
+- `npm pack` contains only LICENSE, README.md, bin/cli.js, and package.json;
+  packed CLI/package bytes match the worktree and packed `--help` reports 0.7.0.
+- `git diff --check` passes. Tests use temporary homes and mocked endpoints;
+  no production tenant, native-client installation, or OAuth session is changed.
+
+### Rollback
+Retain init 0.6.7 with its plugin 2.1.5 and prior standalone-skill pins. Existing
+immutable assets are unchanged; this does not roll back the hosted MCP.

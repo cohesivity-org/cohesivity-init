@@ -25,6 +25,7 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = readFileSync(join(ROOT, 'bin', 'cli.js'), 'utf8');
 
 test('PKG_VERSION matches package.json version', () => {
+  assert.equal(pkg.version, '0.7.0', 'the breaking six-to-four-tool plugin migration requires init 0.7.0');
   const m = cli.match(/^const PKG_VERSION = '([^']+)';$/m);
   assert.ok(m, 'PKG_VERSION not found in bin/cli.js');
   assert.equal(
@@ -131,8 +132,8 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.ok(m, 'SKILL_PIN not found in bin/cli.js');
   assert.equal(
     m[1],
-    'f97e0d2ac8a653b7d54d1bb6e70aee78a8887e60',
-    'init 0.6.7 must install generated skill mirror version 84fbece3c00b',
+    '78d6d26c09ea955e2ab2392a62d980817bcabb39',
+    'init 0.7.0 must install plugin 3.0.5 canonical skill mirror version 2923f0623a63',
   );
   assert.match(
     m[1],
@@ -1047,7 +1048,7 @@ test('artifact byte-size and SHA-256 pins are enforced before extraction', async
 });
 
 test('plugin pins are immutable and config formats are never regex-edited', () => {
-  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/f1b3e82d57a2df873aa3486152d6073606f635dc\/artifacts\/v2\.1\.5\/install-manifest\.v1\.json',\s*manifestBytes: 9610,\s*manifestSha256: '3e70241b60f23af3893c98845f809cfcefe340c7c3ad452fd82fdeac0a373ece',\s*\}\);/);
+  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/a10fde6309d99c5102d72acd867239eb40844c46\/artifacts\/v3\.0\.5\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: 'f2ed554af17a5218d438869b6221d692de1678303fe9525f4d8f4bd79a191e30',\s*\}\);/);
   assert.match(cli, /spawnSync\(command, args, \{[\s\S]*shell: false/);
   assert.doesNotMatch(cli, /config\.(?:json|toml|yaml)[\s\S]{0,100}replace\(/i);
   assert.match(cli, /artifact link .* is not allowed/);
