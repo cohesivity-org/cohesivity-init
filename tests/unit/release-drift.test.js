@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
-import { inspectInstaller, inspectQuickstart, verifyRelease, fingerprint, verifyPin, readTarGzip, inspectClientVersion } from '../../scripts/verify-release.mjs';
+import { inspectInstaller, inspectQuickstart, verifyRelease, fingerprint, verifyPin, readTarGzip, inspectClientVersion, collectRelease } from '../../scripts/verify-release.mjs';
 
 const canonical = { size: 123, sha256: 'a'.repeat(64) };
 const adapted = { size: 145, sha256: 'b'.repeat(64) };
@@ -128,4 +128,38 @@ test('each client version is read from its actual metadata member', () => {
     files.set(serverPath, Buffer.from('export const SERVER_VERSION = null;'));
     assert.throws(() => inspectClientVersion(files, client), /server version/);
   }
+});
+
+test('quickstart source override is read before any live quickstart request', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('unexpected fetch'); });
+  const requested = [];
+  await assert.rejects(collectRelease({
+    source: new URL('../../bin/cli.js', import.meta.url),
+    quickstartSource: new URL('../fixtures/missing-quickstart.sh', import.meta.url),
+    fetchArtifact: async (url) => { requested.push(url); throw new Error('unexpected fetch'); },
+  }), /ENOENT/);
+  assert.deepEqual(requested, []);
+});
+
+test('canonical skill source override is read before any live skill request', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('unexpected fetch'); });
+  const requested = [];
+  await assert.rejects(collectRelease({
+    source: new URL('../../bin/cli.js', import.meta.url),
+    skillSource: new URL('../fixtures/missing-skill.md', import.meta.url),
+    fetchArtifact: async (url) => { requested.push(url); throw new Error('unexpected fetch'); },
+  }), /ENOENT/);
+  assert.deepEqual(requested, []);
+});
+
+test('candidate source files replace deployed downloads without changing artifact verification', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('unexpected global fetch'); });
+  const requested = [];
+  const source = new URL('../../bin/cli.js', import.meta.url);
+  const pins = inspectInstaller(readFileSync(source, 'utf8'));
+  await assert.rejects(collectRelease({
+    source, quickstartSource: source, skillSource: source,
+    fetchArtifact: async (url) => { requested.push(url); throw new Error('artifact verification still required'); },
+  }), /artifact verification still required/);
+  assert.deepEqual(requested.sort(), [pins.manifest.url, pins.skillUrl].sort());
 });

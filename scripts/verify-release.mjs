@@ -133,16 +133,20 @@ export function inspectClientVersion(files, client, prefix = '') {
   return metadata.version;
 }
 
-export async function collectRelease({ source } = {}) {
+export async function collectRelease({ source, quickstartSource, skillSource, fetchArtifact = download } = {}) {
+  // Read explicit candidate files before any network access; never fall back to
+  // deployed content when a requested source file is missing.
+  const quickstartCandidate = quickstartSource ? readFileSync(quickstartSource) : null;
+  const skillCandidate = skillSource ? readFileSync(skillSource) : null;
   let installerBytes;
   let npmVersion;
   let npmTarball;
   if (source) installerBytes = readFileSync(source);
   else {
-    const metadata = JSON.parse((await download('https://registry.npmjs.org/@cohesivity%2finit/latest')).toString());
+    const metadata = JSON.parse((await fetchArtifact('https://registry.npmjs.org/@cohesivity%2finit/latest')).toString());
     npmVersion = metadata.version;
     npmTarball = metadata.dist.tarball;
-    const archive = await download(npmTarball);
+    const archive = await fetchArtifact(npmTarball);
     const integrity = `sha512-${createHash('sha512').update(archive).digest('base64')}`;
     if (integrity !== metadata.dist.integrity) throw new Error('npm tarball integrity mismatch');
     const files = readTarGzip(archive);
@@ -153,14 +157,14 @@ export async function collectRelease({ source } = {}) {
   const installer = inspectInstaller(installerBytes.toString());
   if (npmVersion && npmVersion !== installer.version) throw new Error('npm CLI version mismatch');
   const [quickstartBytes, canonicalBytes, manifestBytes, npmSkillBytes] = await Promise.all([
-    download('https://cohesivity.ai/quickstart.sh'), download('https://cohesivity.ai/skill.md'),
-    download(installer.manifest.url), download(installer.skillUrl),
+    quickstartCandidate ?? fetchArtifact('https://cohesivity.ai/quickstart.sh'), skillCandidate ?? fetchArtifact('https://cohesivity.ai/skill.md'),
+    fetchArtifact(installer.manifest.url), fetchArtifact(installer.skillUrl),
   ]);
   verifyPin(manifestBytes, installer.manifest, 'npm plugin manifest');
   const quickstart = inspectQuickstart(quickstartBytes.toString());
   const manifest = JSON.parse(manifestBytes.toString());
   if (manifest.schema_version !== 1 || !Array.isArray(manifest.packages)) throw new Error('unsupported plugin manifest');
-  const [shellSkillBytes, shellArchiveBytes] = await Promise.all([download(quickstart.skillUrl), download(quickstart.archive.url)]);
+  const [shellSkillBytes, shellArchiveBytes] = await Promise.all([fetchArtifact(quickstart.skillUrl), fetchArtifact(quickstart.archive.url)]);
   verifyPin(shellArchiveBytes, quickstart.archive, 'quickstart plugin archive');
   const shellFiles = readTarGzip(shellArchiveBytes);
   const root = `cohesivity-plugin-${quickstart.archive.url.split('/').pop()}`;
@@ -178,7 +182,7 @@ export async function collectRelease({ source } = {}) {
     const entries = manifest.packages.filter((entry) => entry.client === client);
     if (entries.length !== 1) throw new Error(`expected one ${client} package`);
     const entry = entries[0];
-    const archive = await download(entry.immutable_url);
+    const archive = await fetchArtifact(entry.immutable_url);
     verifyPin(archive, entry, `${client} npm archive`);
     const files = readTarGzip(archive);
     const path = client === 'codex' ? 'plugins/cohesivity/skills/cohesivity/SKILL.md' : 'skills/cohesivity/SKILL.md';
@@ -189,6 +193,7 @@ export async function collectRelease({ source } = {}) {
   }
   return {
     observedAt: new Date().toISOString(), mode: source ? 'source candidate' : 'published npm latest', npmTarball,
+    candidateSources: { installer: Boolean(source), quickstart: Boolean(quickstartSource), canonicalSkill: Boolean(skillSource) },
     installer, quickstart, canonicalSkill: fingerprint(canonicalBytes), npmSkill: fingerprint(npmSkillBytes), shellSkill: fingerprint(shellSkillBytes),
     npmPluginVersion: manifest.version, shellPluginVersion, npmClientVersions, shellClientVersions, npmSkills, shellSkills,
   };
@@ -199,12 +204,16 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const args = process.argv.slice(2);
     let source;
     let snapshot;
+    let quickstartSource;
+    let skillSource;
     for (let index = 0; index < args.length; index++) {
       if (args[index] === '--source' && args[index + 1]) source = args[++index];
+      else if (args[index] === '--quickstart-source' && args[index + 1]) quickstartSource = args[++index];
+      else if (args[index] === '--skill-source' && args[index + 1]) skillSource = args[++index];
       else if (args[index] === '--snapshot' && args[index + 1]) snapshot = args[++index];
       else throw new Error(`unknown or incomplete argument: ${args[index]}`);
     }
-    const value = await collectRelease({ source });
+    const value = await collectRelease({ source, quickstartSource, skillSource });
     const errors = verifyRelease(value);
     if (errors.length) throw new Error(errors.join('\n'));
     if (snapshot) writeFileSync(snapshot, `${JSON.stringify(value, null, 2)}\n`);

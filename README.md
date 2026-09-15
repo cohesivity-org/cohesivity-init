@@ -285,6 +285,13 @@ published shell installer and canonical skill:
 node scripts/verify-release.mjs --source bin/cli.js
 ```
 
+For a coordinated quickstart or canonical-skill update, pass the rendered
+candidate files with `--quickstart-source <quickstart.sh>` and
+`--skill-source <skill.md>`. These replace only those two public documents;
+referenced immutable artifacts are still downloaded and verified. The main
+Cohesivity repository vendors this verifier and its observation so its existing
+unit gate can check the quickstart renderer against the same release contract.
+
 After npm publication, run the same check against the actual npm `latest`
 tarball, rather than the checkout:
 

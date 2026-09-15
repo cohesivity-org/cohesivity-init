@@ -177,3 +177,27 @@ publication, runtime release, or deployment changes.
 - New version regressions failed before implementation and pass after it.
 - The live 0.7.0 source comparison passes with every client reporting 3.0.5.
 - All 60 tests and `git diff --check` pass locally on Node 24.8.0.
+
+## 2026-09-15 — Share verification with quickstart source checks
+
+### Why
+The user requested drift protection in both installer repositories. The main
+Cohesivity repository must verify its rendered quickstart and canonical skill
+before deployment, using the same comparison logic and observation as init.
+
+### What changed
+- Add optional `--quickstart-source` and `--skill-source` inputs to the shared
+  verifier. Explicit missing source files fail before any network access;
+  immutable plugin and standalone artifacts still undergo their normal checks.
+- Expose the artifact downloader as a test dependency and record which inputs
+  were source candidates. Add offline tests for missing files and replacement
+  of deployed-document requests, without changing installer delivery or CI.
+- Document the main repository's pinned vendoring of this verifier and snapshot.
+
+### CICD classification
+Docs / scripts / tests only. No release tag, npm publication, deployment,
+consent policy, or tenant-facing behavior changes.
+
+### Verification
+- New source-override tests failed before implementation, then passed.
+- All 63 tests pass locally on Node 24.8.0. No installer or tenant mutations ran.
