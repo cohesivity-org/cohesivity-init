@@ -36,3 +36,22 @@ Retain init 0.6.6 and its plugin 2.1.4 pin. Existing immutable release assets
 remain unchanged.
 
 Refs COH-276.
+
+## 2026-09-15 — Clarify the shared CI/CD policy reference
+
+### Why
+The preceding entry's `docs/CICD.md` refers to the sibling documentation
+repository, not a path inside this initializer repository.
+
+### What changed
+The shared policy is [cohesivity-org/docs: CICD.md](https://github.com/cohesivity-org/docs/blob/main/CICD.md).
+This appended clarification preserves the earlier changelog entry.
+
+### CICD classification
+Docs-only clarification; no code, package, release pin, or plugin changes.
+
+### Verification
+- Confirmed `CICD.md` is tracked in the sibling documentation checkout.
+- All 49 initializer tests and `git diff --check` pass.
+
+Refs COH-276.
