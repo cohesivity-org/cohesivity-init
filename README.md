@@ -82,14 +82,14 @@ The manifest schema is:
 ```json
 {
   "schema_version": 1,
-  "version": "2.1.4",
+  "version": "2.1.5",
   "packages": [
     {
       "client": "portable",
       "immutable_url": "https://immutable.example/portable.tar.gz",
       "size": 1234,
       "sha256": "64 lowercase hexadecimal characters",
-      "archive": "cohesivity-portable-2.1.4.tar.gz"
+      "archive": "cohesivity-portable-2.1.5.tar.gz"
     }
   ]
 }
@@ -97,7 +97,7 @@ The manifest schema is:
 
 The installer maps Claude and OpenClaw to `claude`; Cursor and Hermes to
 `portable`; Codex to `codex`; Gemini to `gemini`; and Antigravity to
-`antigravity`. The 2.1.4 manifest also carries the direct `openai` package,
+`antigravity`. The 2.1.5 manifest also carries the direct `openai` package,
 which this marketplace-based Codex installer does not select. Extraction
 rejects absolute paths, traversal, links, duplicate paths, special files,
 malformed headers, oversized content, and archives without an end marker.
@@ -165,6 +165,13 @@ server-issued, and not derived from hardware or user data. Delete
 | `--dry-run` | print exact actions with zero side effects |
 | `--base <url>` | API base for tenant bootstrap (default `https://cohesivity.ai`) |
 | `-h`, `--help` | show command help and the exact package version |
+
+## 0.6.7 local MCP metadata compatibility
+
+Version 0.6.7 pins Cohesivity plugin 2.1.5. Its local MCP accepts optional
+object-valued `params._meta` on tool calls without forwarding or reflecting it.
+The six-tool v2 interface, confirmation behavior, client adapters, and canonical
+skill pin are unchanged. Tool arguments remain strictly validated.
 
 ## 0.6.6 released Hermes adapter
 
