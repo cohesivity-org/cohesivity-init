@@ -276,6 +276,52 @@ with provenance:
 npm audit signatures
 ```
 
+### Check installer delivery drift
+
+Before tagging an initializer release, compare its source candidate with the
+published shell installer and canonical skill:
+
+```bash
+node scripts/verify-release.mjs --source bin/cli.js
+```
+
+After npm publication, run the same check against the actual npm `latest`
+tarball, rather than the checkout:
+
+```bash
+node scripts/verify-release.mjs
+```
+
+Both commands are read-only: they download public artifacts without running an
+installer, configuring clients, creating tenants, or starting OAuth. They verify
+npm tarball integrity and plugin size/hash pins, then compare plugin versions,
+standalone skill URLs and bytes, and the six packaged client skills across npm
+and quickstart. Claude has an intentional skill adapter, so its two deliveries
+must match each other; the other five client skills must also match the live
+`https://cohesivity.ai/skill.md`. Different archive commits are allowed when the
+release version and delivered skill bytes agree.
+
+`node --test` includes offline comparison regressions and a recorded delivery
+snapshot. When changing release pins, refresh that snapshot only after the
+candidate passes the live check, then review its immutable URLs and hashes:
+
+```bash
+node scripts/verify-release.mjs --source bin/cli.js \
+  --snapshot tests/fixtures/release-observation.json
+node --test
+```
+
+The snapshot catches source pin changes that have not been checked against the
+other delivery path. Offline unit tests cannot detect a later independent npm,
+quickstart, or canonical-skill publication; the live checks above are required
+release verification. They are not automatically added to CI by this change.
+A mismatch exits nonzero and does not rewrite any release pin. Publication of
+0.7.0 remains a separate release step; an unmerged PR does not update npm.
+
+This comparison covers the skill bytes delivered by each installer. It does not
+rewrite package versions mentioned inside the canonical skill (currently its
+older no-MCP fallback), test native client behavior, or change mutation consent.
+
 Node.js 18+ is required for built-in `fetch`. The package has zero dependencies
 and no `postinstall` hook.
 

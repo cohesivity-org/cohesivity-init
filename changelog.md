@@ -109,3 +109,45 @@ is handled separately in core PR #436.
 ### Rollback
 Retain init 0.6.7 with its plugin 2.1.5 and prior standalone-skill pins. Existing
 immutable assets are unchanged; this does not roll back the hosted MCP.
+
+## 2026-09-15 — Check drift between installer deliveries
+
+### Why
+Published init 0.6.7 consistently installs plugin 2.1.5 and its matching older
+skill, while the shell quickstart delivers plugin 3.0.5 and the current skill.
+Internal npm pin assertions cannot catch that disagreement. PR #30 already
+aligns the initializer's release inputs in 0.7.0; this companion adds verification
+without duplicating that migration or publishing it.
+
+### What changed
+- Add `scripts/verify-release.mjs`: a read-only comparison of the actual npm
+  `latest` tarball, live quickstart, canonical skill, and all six client plugin
+  artifacts. Verify archive/manifest integrity before comparing their versions
+  and delivered skill bytes. `--source` checks a candidate before publication.
+- Keep Claude's intentionally adapted skill distinct from the canonical skill,
+  but require exact agreement between npm and quickstart Claude packages.
+- Add offline unit regressions for internally consistent stale npm, both paths
+  lagging canonical content, same-version client drift, missing clients, invalid
+  pins, and malformed archives. Record the independently verified source
+  candidate observation in `tests/fixtures/release-observation.json`.
+- Document snapshot refresh and before/after-publication checks. The unit suite
+  does not claim to detect subsequent live releases without running that check.
+  No installer, skill policy, native adapter, or CI workflow is changed here.
+
+### CICD classification
+Docs / scripts / metadata per the sibling docs `CICD.md`. This is stacked on
+initializer PR #30 and changes no runtime, release pointer, deployment, or npm
+publication. The existing tag-triggered publication remains separately required.
+
+### Verification
+- The new unit file failed before the verifier existed, then passed with the
+  implementation. Focused tests exercise matching and mismatched release inputs.
+- Read-only live verification passes for PR #30's init 0.7.0 source: plugin
+  3.0.5 and all six client skill deliveries match quickstart; the five unadapted
+  skills match the canonical SHA-256
+  `f995c85b94ac5198eb0bdb45c7847d76092f7905cb6d7802e5e0caa6c2d8e502`.
+- The same command against published npm latest fails as expected, detecting
+  plugin 2.1.5 versus 3.0.5 and the old standalone/client skills. No tenant,
+  client configuration, or authentication state was created or changed.
+- All 58 tests pass with `node --test`; verifier syntax and `git diff --check`
+  pass on Node 24.8.0.
