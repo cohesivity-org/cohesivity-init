@@ -166,6 +166,18 @@ server-issued, and not derived from hardware or user data. Delete
 | `--base <url>` | API base for tenant bootstrap (default `https://cohesivity.ai`) |
 | `-h`, `--help` | show command help and the exact package version |
 
+## 0.7.1 four-tool skill guidance
+
+Version 0.7.1 delivers plugin 3.0.6 and its matching standalone skill. The skill
+lists the four supported MCP tools and requires a human handoff for unsupported
+control-plane mutations, including deployment, billing, and destruction. It
+does not permit an HTTP, CLI, or script bypass. Its no-MCP fallback pins this
+initializer version so bootstrap does not reinstall the previous guidance.
+
+The plugin's MCP behavior, explicit confirmation checks, client adapters, and
+initializer bootstrap behavior are unchanged. The shared release observation
+is regenerated from the immutable candidate artifacts, not edited by hand.
+
 ## 0.7.0 four-tool bootstrap interface
 
 Version 0.7.0 pins the published Cohesivity plugin 3.0.5. This is a breaking

@@ -201,3 +201,37 @@ consent policy, or tenant-facing behavior changes.
 ### Verification
 - New source-override tests failed before implementation, then passed.
 - All 63 tests pass locally on Node 24.8.0. No installer or tenant mutations ran.
+
+## 2026-09-16 — Deliver four-tool skill guidance in init 0.7.1
+
+### What changed
+
+Pin plugin 3.0.6 manifest `e157d473a8e60531572fd29ccfd2314bd6e2983a`
+(9,400 bytes, SHA-256
+`a295d7b318077a935ae9b0469916f8213a8cdf27b8c9bf7ee604d3007ca06495`)
+and generated skill mirror `1c65e6d1bf4690d7ee3b046bcd8251387b4f701b`.
+Skill `d309e051978d` lists the four supported tools, requires human handoff for
+unsupported mutations, removes obsolete tool instructions, and pins this
+initializer as the no-MCP fallback. The package and CLI versions advance
+together; initializer behavior and client adapters are unchanged.
+
+Regenerate the shared release observation with the existing verifier against
+the rendered core candidates and publicly retrievable immutable skill/plugin
+artifacts. The observation is not manually edited and the verifier is unchanged.
+The core repository must vendor this committed observation in its matching PR.
+
+### CICD classification
+
+Installer release inputs, documentation, and tests under `docs/CICD.md`.
+Initializer 0.7.0 has already been published; this 0.7.1 candidate is a separate
+coordinated core/plugin/skill release and remains pending review. No release
+tag or npm publication is performed by this commit.
+
+### Verification
+
+Version, skill-pin, and manifest-pin regressions failed before implementation.
+All 63 tests and CLI syntax checks pass on Node 18.20.8, 22.23.2, and 24.18.0.
+The candidate verifier confirms plugin 3.0.6 and all six client skill deliveries
+match the generated canonical candidate and quickstart, with artifact size/hash
+checks intact. `npm pack` contains the expected four files for 0.7.1, and
+`git diff --check` passes. No installer, client setup, or tenant creation ran.
