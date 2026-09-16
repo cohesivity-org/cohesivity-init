@@ -235,3 +235,16 @@ The candidate verifier confirms plugin 3.0.6 and all six client skill deliveries
 match the generated canonical candidate and quickstart, with artifact size/hash
 checks intact. `npm pack` contains the expected four files for 0.7.1, and
 `git diff --check` passes. No installer, client setup, or tenant creation ran.
+
+## 2026-09-16 — Clarify coordinated snapshot verification
+
+The `docs/CICD.md` reference in the preceding entry means the sibling
+[cohesivity-org/docs release playbook](https://github.com/cohesivity-org/docs/blob/main/CICD.md),
+not a file in this repository. This is documentation-only work.
+
+README now shows all three source inputs used to generate the coordinated
+observation, explains invocation flags and timestamps, and requires publishing
+the pinned fallback before its skill goes live. Repeating that command against
+the candidate sources reproduces every observation field except the new
+timestamp. The committed observation, verifier, and release pins are unchanged;
+all 63 tests and `git diff --check` pass.

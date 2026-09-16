@@ -323,24 +323,35 @@ version and delivered skill bytes agree.
 
 `node --test` includes offline comparison regressions and a recorded delivery
 snapshot. When changing release pins, refresh that snapshot only after the
-candidate passes the live check, then review its immutable URLs and hashes:
+candidate passes the live check, then review its immutable URLs and hashes.
+For this coordinated release, render the quickstart and generated skill from
+the matching core candidate in cohesivity-org/cohesivity#514 and supply all
+three candidate inputs:
 
 ```bash
 node scripts/verify-release.mjs --source bin/cli.js \
+  --quickstart-source /path/to/rendered-quickstart.sh \
+  --skill-source /path/to/generated-skill.md \
   --snapshot tests/fixtures/release-observation.json
 node --test
 ```
+
+Omit the two document overrides only when intentionally checking the deployed
+quickstart and skill. The observation records those flags; changing the inputs
+changes that metadata. A new observation also receives a fresh timestamp.
 
 The snapshot catches source pin changes that have not been checked against the
 other delivery path. Offline unit tests cannot detect a later independent npm,
 quickstart, or canonical-skill publication; the live checks above are required
 release verification. They are not automatically added to CI by this change.
 A mismatch exits nonzero and does not rewrite any release pin. Publication of
-0.7.0 remains a separate release step; an unmerged PR does not update npm.
+0.7.1 remains a separate release step; an unmerged PR does not update npm.
 
 This comparison covers the skill bytes delivered by each installer. It does not
-rewrite package versions mentioned inside the canonical skill (currently its
-older no-MCP fallback), test native client behavior, or change mutation consent.
+rewrite or verify the availability of package versions mentioned inside the
+canonical skill, test native client behavior, or change mutation consent.
+Verify that the pinned fallback is published before merging the matching
+canonical skill, skill mirror, or plugin release.
 
 Node.js 18+ is required for built-in `fetch`. The package has zero dependencies
 and no `postinstall` hook.
