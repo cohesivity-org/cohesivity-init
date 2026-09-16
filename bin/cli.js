@@ -44,7 +44,7 @@ import { gunzipSync } from 'node:zlib';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
-const PKG_VERSION = '0.7.1';
+const PKG_VERSION = '0.8.0';
 
 function validateArgs() {
   const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--help', '-h']);
@@ -78,16 +78,16 @@ const MACHINE_ID_FILE = join(MACHINE_ID_DIR, 'machine-id');
 
 // The skill is pinned to an immutable commit in the public, auditable repo.
 // Bumping the pin is a deliberate release step. See COH-172.
-const SKILL_PIN = '1c65e6d1bf4690d7ee3b046bcd8251387b4f701b';
+const SKILL_PIN = 'cb3b6be6ad8a0e9ce27fef5a1fb30ead39430981';
 const SKILL_URL = `https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/${SKILL_PIN}/cohesivity.skill.md`;
 
 // Plugin release pins live in this one block. Bump all three values together
 // after publishing a new two-commit artifact manifest from cohesivity-plugin.
 // Tests inject a complete pin with COHESIVITY_PLUGIN_MANIFEST_PIN.
 const PLUGIN_RELEASE = Object.freeze({
-  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/e157d473a8e60531572fd29ccfd2314bd6e2983a/artifacts/v3.0.6/install-manifest.v1.json',
+  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/a3100ee07ab19168901dd15b58ed5c200dd585a7/artifacts/v4.0.0/install-manifest.v1.json',
   manifestBytes: 9400,
-  manifestSha256: 'a295d7b318077a935ae9b0469916f8213a8cdf27b8c9bf7ee604d3007ca06495',
+  manifestSha256: '35fcef2844fe1a704776cf6dae94d863848bd7cc609a66f07cbe3b4349b71b8b',
 });
 
 const ARTIFACT_KEYS = Object.freeze({
