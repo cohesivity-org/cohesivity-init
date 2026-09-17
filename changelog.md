@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-17 — Release 0.8.2
+
+Bump version from 0.8.1 to 0.8.2 for the `--tenant-only` flag added in the
+previous commit. No code changes beyond the version constants and test pin.
+
 ## 2026-09-17 — Add undocumented --tenant-only flag
 
 ### What changed
