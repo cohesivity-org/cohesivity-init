@@ -278,3 +278,17 @@ and the canonical/adapted skill bytes. All 63 tests pass on Node 18.20.8 and
 24.18.0. CLI syntax, `git diff --check`, and `npm pack --dry-run` pass; the npm
 package contains only the expected four files. No npm publication, real client
 setup, account login, or tenant creation ran.
+
+## 2026-09-17 — Pin hosted credential file handoff
+
+Keep initializer 0.8.0 as the unpublished candidate and update it to plugin
+4.0.1 manifest commit `3552aff2` and skill mirror `27e41382`. The installed
+guidance makes the calling agent save the hosted creation result directly to
+`.cohesivity`; browser download is optional. The initializer's own guest flow
+is unchanged.
+
+The shared verifier downloaded and checked the immutable artifacts before
+regenerating the release observation. All six client deliveries match the
+rendered quickstart and canonical candidate. All 63 tests pass on Node
+18.20.8 and 24.18.0; CLI syntax and whitespace checks pass. This is an installer
+release-input update under sibling CICD guidance, with no npm publication.
