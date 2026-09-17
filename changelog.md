@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-09-17 — Add undocumented --tenant-only flag
+
+### What changed
+Accept `--tenant-only` in the arg validator. When set, skip all delivery — no
+standalone skill, no plugin, no MCP configuration. Tenant creation, machine-id
+attribution, project file pointers, and gitignore are unchanged.
+
+The flag is intentionally absent from `--help` and the README. Third-party
+integration skills (e.g. Agentty Sites) reference it to bootstrap a tenant
+without installing the broader Cohesivity skill on the user's machine. Agents
+calling the normal `npx @cohesivity/init` flow still get the full delivery.
+
+### CICD classification
+npm installer source change. No hosted runtime deployment, workflow change,
+release tag, or npm publication in this PR.
+
+### Verification
+51/51 tests pass, including two new tests: one proving that `--tenant-only`
+creates a tenant with attribution but no skill/plugin, and one proving the
+flag does not appear in `--help` output.
+
 ## 2026-09-15 — Pin the v2 MCP metadata patch in init 0.6.7
 
 ### Why

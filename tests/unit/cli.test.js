@@ -1288,6 +1288,41 @@ test('re-running leaves one pointer block, not two', async () => {
   });
 });
 
+test('--tenant-only creates a tenant without installing any skill or plugin', async () => {
+  await withStubOrigin(async (base, seen, reqs) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    try {
+      mkdirSync(project, { recursive: true });
+      writeFileSync(join(project, 'README.md'), '# My app\n');
+
+      const out = await runCli(base, home, project, ['--tenant-only'], { plugins: true });
+
+      assert.deepEqual(seen, [null], 'genesis is called once');
+      assert.equal(reqs[0].ua, '{npx:claude-web}', 'attribution is preserved');
+      assert.match(readFileSync(join(project, '.cohesivity'), 'utf8'), /^tenant_id=brave-otter-runs$/m);
+      assert.equal(readFileSync(join(project, '.gitignore'), 'utf8'), '.cohesivity\n');
+      assert.equal(readFileSync(join(home, '.config', 'cohesivity', 'machine-id'), 'utf8').trim(), MACHINE_ID);
+      assert.ok(!existsSync(join(home, '.agents', 'skills', 'cohesivity', 'SKILL.md')), 'no standalone skill installed');
+      assert.ok(!existsSync(join(home, '.claude', 'plugins')), 'no plugin installed');
+      assert.ok(!existsSync(join(home, SKILL_REQUEST_FILE)), 'skill URL was never fetched');
+      assert.match(readFileSync(join(project, 'README.md'), 'utf8'), /BEGIN:cohesivity/, 'project pointer is still added');
+      assert.ok(!out.includes('standalone skill'), 'no skill delivery message');
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('--tenant-only is not documented in --help', async () => {
+  const { stdout } = await run(process.execPath, [join(ROOT, 'bin', 'cli.js'), '--help'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  });
+  assert.ok(!stdout.includes('--tenant-only'), 'tenant-only must stay undocumented');
+});
+
 test('--dry-run touches none of the project files', async () => {
   await withStubOrigin(async (base) => {
     const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
