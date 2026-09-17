@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-18 — Bump skill pin for MCP mutation fix
+
+Update `SKILL_PIN` from `dea8889b` to `bf7cd4e1` (cohesivity-skill PR #10).
+The installed standalone skill now allows direct HTTP for control-plane
+mutations when MCP is unavailable. Consent rules unchanged. Updated the
+release observation fixture to match the new canonical skill bytes
+(20663 bytes, sha256 `be4adbeb`). No installer behavior change; this is
+a pin-only update. 65/65 tests pass.
+
+### CICD classification
+Installer release inputs only. No npm publication in this PR.
+
 ## 2026-09-17 — Release 0.8.2
 
 Bump version from 0.8.1 to 0.8.2 for the `--tenant-only` flag added in the

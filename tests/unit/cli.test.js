@@ -132,8 +132,8 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.ok(m, 'SKILL_PIN not found in bin/cli.js');
   assert.equal(
     m[1],
-    'dea8889b43482b91723de57bac17c5f96d84204b',
-    'init 0.8.1 must install plugin 4.0.2 canonical skill mirror version ac6c3a29928f',
+    'bf7cd4e14840c309a5db7fa17dc54623d629cd59',
+    'init 0.8.2 skill pin must match cohesivity-skill MCP-fix commit (version 6be708a4c601)',
   );
   assert.match(
     m[1],
