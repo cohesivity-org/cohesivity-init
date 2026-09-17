@@ -1,5 +1,5 @@
 {
-  "observedAt": "2026-09-17T06:51:08.369Z",
+  "observedAt": "2026-09-18T00:00:00.000Z",
   "mode": "source candidate",
   "candidateSources": {
     "installer": true,
@@ -10,9 +10,9 @@
     "version": "0.8.2",
     "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/bf7cd4e14840c309a5db7fa17dc54623d629cd59/cohesivity.skill.md",
     "manifest": {
-      "url": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/81845011decc6081c0e82fe6f39ad35598f3fca8/artifacts/v4.0.2/install-manifest.v1.json",
+      "url": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/627d5d94105bc7aed059280eb4e7787dcfa5e7cb/artifacts/v4.0.3/install-manifest.v1.json",
       "size": 9400,
-      "sha256": "d5634c7d8d1106cea11cb6620dda218f9727173e9ffd636843dc02142e5aaec4"
+      "sha256": "ba7952cabd2220d0ff821c1ad3cdbd6bb4b795f420c776b0f898351e01ae2014"
     }
   },
   "quickstart": {
@@ -22,9 +22,9 @@
       "sha256": "be4adbeb2df3eea431f59ef59a7da4bc598e97fbf9f534ed58fda80dc4bd580e"
     },
     "archive": {
-      "url": "https://codeload.github.com/cohesivity-org/cohesivity-plugin/tar.gz/81845011decc6081c0e82fe6f39ad35598f3fca8",
-      "size": 1542039,
-      "sha256": "ffd055184b12e3cced15e6efd22b88ee61444b58364b9fb80291adf25a047084"
+      "url": "https://codeload.github.com/cohesivity-org/cohesivity-plugin/tar.gz/627d5d94105bc7aed059280eb4e7787dcfa5e7cb",
+      "size": 1666008,
+      "sha256": "999413f2a894797eae7d4a6b68b8eef60c5be1907e22f02311d639eddb796772"
     }
   },
   "canonicalSkill": {
@@ -39,23 +39,23 @@
     "size": 20663,
     "sha256": "be4adbeb2df3eea431f59ef59a7da4bc598e97fbf9f534ed58fda80dc4bd580e"
   },
-  "npmPluginVersion": "4.0.2",
-  "shellPluginVersion": "4.0.2",
+  "npmPluginVersion": "4.0.3",
+  "shellPluginVersion": "4.0.3",
   "npmClientVersions": {
-    "portable": "4.0.2",
-    "claude": "4.0.2",
-    "codex": "4.0.2",
-    "gemini": "4.0.2",
-    "antigravity": "4.0.2",
-    "openai": "4.0.2"
+    "portable": "4.0.3",
+    "claude": "4.0.3",
+    "codex": "4.0.3",
+    "gemini": "4.0.3",
+    "antigravity": "4.0.3",
+    "openai": "4.0.3"
   },
   "shellClientVersions": {
-    "portable": "4.0.2",
-    "claude": "4.0.2",
-    "codex": "4.0.2",
-    "gemini": "4.0.2",
-    "antigravity": "4.0.2",
-    "openai": "4.0.2"
+    "portable": "4.0.3",
+    "claude": "4.0.3",
+    "codex": "4.0.3",
+    "gemini": "4.0.3",
+    "antigravity": "4.0.3",
+    "openai": "4.0.3"
   },
   "npmSkills": {
     "portable": {
@@ -63,8 +63,8 @@
       "sha256": "be4adbeb2df3eea431f59ef59a7da4bc598e97fbf9f534ed58fda80dc4bd580e"
     },
     "claude": {
-      "size": 21870,
-      "sha256": "3f35d53808098a3ceab73c73caa6d2de4430d2d000a9eb23f58db918e0d2b928"
+      "size": 21893,
+      "sha256": "de9e279535104b846976775f03fa5e38a0fc39237b89bd248da65c33e5430369"
     },
     "codex": {
       "size": 20663,
@@ -89,8 +89,8 @@
       "sha256": "be4adbeb2df3eea431f59ef59a7da4bc598e97fbf9f534ed58fda80dc4bd580e"
     },
     "claude": {
-      "size": 21870,
-      "sha256": "3f35d53808098a3ceab73c73caa6d2de4430d2d000a9eb23f58db918e0d2b928"
+      "size": 21893,
+      "sha256": "de9e279535104b846976775f03fa5e38a0fc39237b89bd248da65c33e5430369"
     },
     "codex": {
       "size": 20663,

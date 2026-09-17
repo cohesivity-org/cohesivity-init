@@ -85,9 +85,9 @@ const SKILL_URL = `https://raw.githubusercontent.com/cohesivity-org/cohesivity-s
 // after publishing a new two-commit artifact manifest from cohesivity-plugin.
 // Tests inject a complete pin with COHESIVITY_PLUGIN_MANIFEST_PIN.
 const PLUGIN_RELEASE = Object.freeze({
-  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/81845011decc6081c0e82fe6f39ad35598f3fca8/artifacts/v4.0.2/install-manifest.v1.json',
+  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/627d5d94105bc7aed059280eb4e7787dcfa5e7cb/artifacts/v4.0.3/install-manifest.v1.json',
   manifestBytes: 9400,
-  manifestSha256: 'd5634c7d8d1106cea11cb6620dda218f9727173e9ffd636843dc02142e5aaec4',
+  manifestSha256: 'ba7952cabd2220d0ff821c1ad3cdbd6bb4b795f420c776b0f898351e01ae2014',
 });
 
 const ARTIFACT_KEYS = Object.freeze({
