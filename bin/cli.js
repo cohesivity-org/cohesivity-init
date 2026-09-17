@@ -78,7 +78,7 @@ const MACHINE_ID_FILE = join(MACHINE_ID_DIR, 'machine-id');
 
 // The skill is pinned to an immutable commit in the public, auditable repo.
 // Bumping the pin is a deliberate release step. See COH-172.
-const SKILL_PIN = 'dea8889b43482b91723de57bac17c5f96d84204b';
+const SKILL_PIN = 'bf7cd4e14840c309a5db7fa17dc54623d629cd59';
 const SKILL_URL = `https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/${SKILL_PIN}/cohesivity.skill.md`;
 
 // Plugin release pins live in this one block. Bump all three values together
