@@ -47,7 +47,7 @@ const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : u
 const PKG_VERSION = '0.8.1';
 
 function validateArgs() {
-  const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--help', '-h']);
+  const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--tenant-only', '--help', '-h']);
   const values = new Set(['--runtime', '--base']);
   for (let i = 0; i < argv.length; i++) {
     if (switches.has(argv[i])) continue;
@@ -146,6 +146,7 @@ function inferHarness() {
 
 const DRY = has('--dry-run');
 const NO_PLUGIN = has('--no-plugin');
+const TENANT_ONLY = has('--tenant-only');
 
 const CWD = process.cwd();
 const rel = (p) => p.replace(CWD + '/', '');
@@ -161,9 +162,11 @@ const UA = `{npx:${HARNESS}}`;
 async function main() {
   validateArgs();
   console.log(`\ncohesivity/init v${PKG_VERSION}: setting up (harness: ${HARNESS})${DRY ? '   [dry-run: no changes]' : ''}\n`);
-  const deliveryFailures = NO_PLUGIN
-    ? await installStandaloneSkill()
-    : await installClientIntegrations();
+  const deliveryFailures = TENANT_ONLY
+    ? []
+    : NO_PLUGIN
+      ? await installStandaloneSkill()
+      : await installClientIntegrations();
   await ensureTenant();
   augmentProjectFiles();
   if (deliveryFailures.length) {
@@ -906,7 +909,9 @@ function ground(deliveryFailures) {
   console.log(`  - Keys are in .cohesivity (gitignored, do not commit).`);
   console.log(`  - Provision a service: POST ${BASE}/api/resources/<name>  (Authorization: Bearer <coh_management_key>)`);
   console.log(`  - Per-service docs: ${BASE}/offerings/<name>   \u00b7   full reference: ${BASE}/llms.txt`);
-  if (NO_PLUGIN) {
+  if (TENANT_ONLY) {
+    // No delivery message — tenant-only mode is silent about what it skipped.
+  } else if (NO_PLUGIN) {
     console.log(`  - Only the standalone skill was installed at ${displayPath(CANONICAL_SKILL_DIR)}; no plugin or MCP configuration was added.`);
   } else if (deliveryFailures.length) {
     console.log('  - Retry after correcting the delivery errors above; tenant bootstrap is idempotent.');
