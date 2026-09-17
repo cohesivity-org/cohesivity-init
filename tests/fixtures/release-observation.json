@@ -7,7 +7,7 @@
     "canonicalSkill": true
   },
   "installer": {
-    "version": "0.8.1",
+    "version": "0.8.2",
     "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/dea8889b43482b91723de57bac17c5f96d84204b/cohesivity.skill.md",
     "manifest": {
       "url": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/81845011decc6081c0e82fe6f39ad35598f3fca8/artifacts/v4.0.2/install-manifest.v1.json",
