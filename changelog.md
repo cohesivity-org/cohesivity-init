@@ -248,3 +248,47 @@ the pinned fallback before its skill goes live. Repeating that command against
 the candidate sources reproduces every observation field except the new
 timestamp. The committed observation, verifier, and release pins are unchanged;
 all 63 tests and `git diff --check` pass.
+
+## 2026-09-16 — Pin optional MCP account access
+
+### What changed
+
+Initializer 0.8.0 installs plugin 4.0.0 from manifest commit
+`a3100ee07ab19168901dd15b58ed5c200dd585a7` and standalone skill commit
+`cb3b6be6ad8a0e9ce27fef5a1fb30ead39430981`. The plugin adds full quickstart
+bootstrap and optional local account login; its matching hosted flow supports
+guest/account access and protected credential downloads. The initializer's own
+guest tenant bootstrap is unchanged and does not consume local MCP auth state.
+README describes that distinction and the coordinated Worker dependency.
+
+### CICD classification
+
+Installer release inputs, docs, and tests under the sibling
+`cohesivity-org/docs` CICD playbook. Version 0.8.0 is an unpublished candidate.
+Publish it before serving the skill's matching fallback pin; do not call the
+account flow live until the coordinated Worker release completes.
+
+### Verification
+
+All three pin regressions failed before implementation. The shared verifier
+downloaded the real immutable manifest, archives, and standalone skill, then
+regenerated `tests/fixtures/release-observation.json` against rendered candidate
+quickstart and skill sources. All six client deliveries agree on plugin 4.0.0
+and the canonical/adapted skill bytes. All 63 tests pass on Node 18.20.8 and
+24.18.0. CLI syntax, `git diff --check`, and `npm pack --dry-run` pass; the npm
+package contains only the expected four files. No npm publication, real client
+setup, account login, or tenant creation ran.
+
+## 2026-09-17 — Pin hosted credential file handoff
+
+Keep initializer 0.8.0 as the unpublished candidate and update it to plugin
+4.0.1 manifest commit `3552aff2` and skill mirror `27e41382`. The installed
+guidance makes the calling agent save the hosted creation result directly to
+`.cohesivity`; browser download is optional. The initializer's own guest flow
+is unchanged.
+
+The shared verifier downloaded and checked the immutable artifacts before
+regenerating the release observation. All six client deliveries match the
+rendered quickstart and canonical candidate. All 63 tests pass on Node
+18.20.8 and 24.18.0; CLI syntax and whitespace checks pass. This is an installer
+release-input update under sibling CICD guidance, with no npm publication.

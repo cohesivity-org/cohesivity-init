@@ -166,6 +166,41 @@ server-issued, and not derived from hardware or user data. Delete
 | `--base <url>` | API base for tenant bootstrap (default `https://cohesivity.ai`) |
 | `-h`, `--help` | show command help and the exact package version |
 
+## 0.8.0 optional MCP account access
+
+Version 0.8.0 installs plugin 4.0.1 and the matching skill. The local MCP's
+`create_tenant` runs the full quickstart, including client integrations and
+project guidance. Its explicit CLI login enables account-owned creation;
+without login it creates a guest tenant. Hosted MCP Connect separately offers
+guest or account access, with an authorized credential-file tool response. Account
+creation starts claimed and has no ephemeral expiry. Both MCPs retain four
+tools and require approval for mutations.
+
+Hosted `create_tenant` returns existing metadata plus
+`credentials_file: { filename: ".cohesivity", content: "<exact .cohesivity file contents>" }`
+in `structuredContent` and the compatible text result. The existing OAuth
+`mcp:tenants:create` scope, confirmation, and fresh ownership or guest-creation
+checks authorize this deliberate secret-bearing response, which may enter
+model or client retained tool history. The calling agent writes content
+verbatim to the current project's `.cohesivity` with mode `0600` and gitignores
+it. Never overwrite a different existing tenant, print credentials in chat,
+logs, or source, or commit them. If the agent cannot write safely, it must
+report that explicitly; the server cannot force a client filesystem write.
+Other hosted tool outputs retain secret scrubbing; local MCP output remains
+metadata-only.
+
+The non-secret `credentials_download_url` and protected browser endpoint remain
+an optional fallback for clients with no writable workspace, not a prerequisite
+for coding clients. Download requires the consent browser's guest cookie for
+its own still-ephemeral creation or an owning account session; the URL and MCP
+bearer alone do not authorize it. Existing plugin 4.0.0 artifacts remain immutable.
+
+The initializer itself retains its existing guest bootstrap behavior and does
+not use or modify local MCP account state. Its installed plugin supplies the
+optional account flow for subsequent MCP-managed projects. Release completion
+requires the coordinated Worker changes; a passing candidate comparison does
+not mean initializer 0.8.0 is published or that those endpoints are deployed.
+
 ## 0.7.1 four-tool skill guidance
 
 Version 0.7.1 delivers plugin 3.0.6 and its matching standalone skill. The skill
@@ -345,7 +380,7 @@ other delivery path. Offline unit tests cannot detect a later independent npm,
 quickstart, or canonical-skill publication; the live checks above are required
 release verification. They are not automatically added to CI by this change.
 A mismatch exits nonzero and does not rewrite any release pin. Publication of
-0.7.1 remains a separate release step; an unmerged PR does not update npm.
+0.8.0 remains a separate release step; an unmerged PR does not update npm.
 
 This comparison covers the skill bytes delivered by each installer. It does not
 rewrite or verify the availability of package versions mentioned inside the
