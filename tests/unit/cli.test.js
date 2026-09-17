@@ -25,7 +25,7 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = readFileSync(join(ROOT, 'bin', 'cli.js'), 'utf8');
 
 test('PKG_VERSION matches package.json version', () => {
-  assert.equal(pkg.version, '0.8.0', 'the coordinated MCP access-mode update requires init 0.8.0');
+  assert.equal(pkg.version, '0.8.1', 'the coordinated MCP access-mode update requires init 0.8.1');
   const m = cli.match(/^const PKG_VERSION = '([^']+)';$/m);
   assert.ok(m, 'PKG_VERSION not found in bin/cli.js');
   assert.equal(
@@ -132,8 +132,8 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.ok(m, 'SKILL_PIN not found in bin/cli.js');
   assert.equal(
     m[1],
-    '27e41382fdaa31e4d32d5019ab76083c20736688',
-    'init 0.8.0 must install plugin 4.0.1 canonical skill mirror version c098834bea25',
+    'dea8889b43482b91723de57bac17c5f96d84204b',
+    'init 0.8.1 must install plugin 4.0.2 canonical skill mirror version ac6c3a29928f',
   );
   assert.match(
     m[1],
@@ -1048,7 +1048,7 @@ test('artifact byte-size and SHA-256 pins are enforced before extraction', async
 });
 
 test('plugin pins are immutable and config formats are never regex-edited', () => {
-  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/3552aff26940e4b48174a5a2cbbc009573b3e0e9\/artifacts\/v4\.0\.1\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: 'fc42074cf01a9b0104f7cc3f9118a2d9718245c38177d9ffef45ce24f9817c12',\s*\}\);/);
+  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/81845011decc6081c0e82fe6f39ad35598f3fca8\/artifacts\/v4\.0\.2\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: 'd5634c7d8d1106cea11cb6620dda218f9727173e9ffd636843dc02142e5aaec4',\s*\}\);/);
   assert.match(cli, /spawnSync\(command, args, \{[\s\S]*shell: false/);
   assert.doesNotMatch(cli, /config\.(?:json|toml|yaml)[\s\S]{0,100}replace\(/i);
   assert.match(cli, /artifact link .* is not allowed/);

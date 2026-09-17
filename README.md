@@ -166,6 +166,22 @@ server-issued, and not derived from hardware or user data. Delete
 | `--base <url>` | API base for tenant bootstrap (default `https://cohesivity.ai`) |
 | `-h`, `--help` | show command help and the exact package version |
 
+## 0.8.1 MCP connection and local reuse
+
+Version 0.8.1 pins plugin 4.0.2 and generated skill `ac6c3a29928f`.
+Hosted Connect uses the existing account browser session automatically or
+temporary guest access, without asking whether to sign in. Sign-in remains
+an independent optional action. A valid local `.cohesivity` is reused without
+loading saved account tokens, so expired or malformed optional login state
+cannot block project integration updates. New projects retain fail-closed
+account authentication. Both MCP transports accept IPv6 loopback social-login
+callbacks alongside localhost and IPv4 loopback.
+
+The initializer's own bootstrap behavior is unchanged. Its six client archives,
+manifest, standalone skill, and quickstart release observation are pinned to
+verified immutable commits. Hosted fixes deploy separately through the core
+runtime/front-door release.
+
 ## 0.8.0 optional MCP account access
 
 Version 0.8.0 installs plugin 4.0.1 and the matching skill. The local MCP's
@@ -380,7 +396,7 @@ other delivery path. Offline unit tests cannot detect a later independent npm,
 quickstart, or canonical-skill publication; the live checks above are required
 release verification. They are not automatically added to CI by this change.
 A mismatch exits nonzero and does not rewrite any release pin. Publication of
-0.8.0 remains a separate release step; an unmerged PR does not update npm.
+0.8.1 remains a separate release step; an unmerged PR does not update npm.
 
 This comparison covers the skill bytes delivered by each installer. It does not
 rewrite or verify the availability of package versions mentioned inside the
