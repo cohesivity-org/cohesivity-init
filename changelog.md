@@ -292,3 +292,18 @@ regenerating the release observation. All six client deliveries match the
 rendered quickstart and canonical candidate. All 63 tests pass on Node
 18.20.8 and 24.18.0; CLI syntax and whitespace checks pass. This is an installer
 release-input update under sibling CICD guidance, with no npm publication.
+
+## 2026-09-17 — Deliver MCP connection and local reuse fixes
+
+Initializer 0.8.1 pins plugin 4.0.2 manifest `81845011` and generated skill
+`ac6c3a29928f` from mirror `dea8889b`. Local project reuse no longer loads
+optional saved account tokens, IPv6 loopback callbacks pass validation, and
+Connect guidance never asks the user to choose whether to sign in. The
+initializer's own bootstrap behavior is unchanged.
+
+The shared release verifier downloaded the immutable manifest, all six client
+archives, the repository archive, and skill bytes before refreshing the release
+observation against the rendered core candidate. All 63 tests, CLI syntax,
+whitespace checks, and npm package dry-run pass. This installer release must
+publish before the matching core, plugin, and skill guidance is merged; it
+does not itself deploy hosted MCP.
