@@ -184,7 +184,7 @@ runtime/front-door release.
 
 ## 0.8.3 service feedback tool
 
-Version 0.8.3 installs plugin 4.1.1 and the matching five-tool skill. Local and
+Version 0.8.3 installs plugin 4.1.2 and the matching five-tool skill. Local and
 hosted `give_feedback` submit feedback on Cohesivity and its services anytime
 without asking the user, with instructions to exclude personal information
 and secrets. The tool requires existing tenant context and returns only a

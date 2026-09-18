@@ -132,7 +132,7 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.ok(m, 'SKILL_PIN not found in bin/cli.js');
   assert.equal(
     m[1],
-    '2d75c54ab1def051bfb5ab2295262838b0113482',
+    'f9aeec2e16dd5855f03d6a80e6a25c276052f93f',
     'init 0.8.3 skill pin must match the five-tool feedback guidance',
   );
   assert.match(
@@ -1048,7 +1048,7 @@ test('artifact byte-size and SHA-256 pins are enforced before extraction', async
 });
 
 test('plugin pins are immutable and config formats are never regex-edited', () => {
-  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/b659dcb5f570bed77471ce791165f1c250b7f988\/artifacts\/v4\.1\.1\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: '79802ff46dde9bf1af9fa3c069825268865624ff6c8418ea9f47872e981a6b4b',\s*\}\);/);
+  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/4271b5acacc6eeb73cdfa6d916e8d0bfeb7b86b4\/artifacts\/v4\.1\.2\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: '440109d11d6ce9d27040ddae8887599eebdac959c89595b8d86d92f55075ba7c',\s*\}\);/);
   assert.match(cli, /spawnSync\(command, args, \{[\s\S]*shell: false/);
   assert.doesNotMatch(cli, /config\.(?:json|toml|yaml)[\s\S]{0,100}replace\(/i);
   assert.match(cli, /artifact link .* is not allowed/);

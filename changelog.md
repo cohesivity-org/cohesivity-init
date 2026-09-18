@@ -386,3 +386,11 @@ Regenerate the release observation from downloaded immutable artifacts and
 the matching rendered quickstart/skill. Candidate verification passes, along
 with all 65 tests on Node 18.20.8 and 24.18.0 and whitespace checks. Publication
 still precedes the coordinated Worker/skill release. Nothing is published here.
+
+## 2026-09-18 — Deliver the softer feedback description
+
+Keep candidate 0.8.3 and pin plugin 4.1.2 manifest `4271b5ac` plus skill
+`3a6cd8662a3b` from mirror `f9aeec2e`. Only the confirmation wording changes;
+bootstrap and tool behavior are unchanged. The downloaded candidate inputs
+agree across all six clients and quickstart. All 65 tests pass on Node
+18.20.8 and 24.18.0, with syntax and whitespace checks. No publication ran.

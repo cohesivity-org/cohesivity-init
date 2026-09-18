@@ -1,5 +1,5 @@
 {
-  "observedAt": "2026-09-18T09:46:10.367Z",
+  "observedAt": "2026-09-18T12:04:22.640Z",
   "mode": "source candidate",
   "candidateSources": {
     "installer": true,
@@ -8,105 +8,105 @@
   },
   "installer": {
     "version": "0.8.3",
-    "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/2d75c54ab1def051bfb5ab2295262838b0113482/cohesivity.skill.md",
+    "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/f9aeec2e16dd5855f03d6a80e6a25c276052f93f/cohesivity.skill.md",
     "manifest": {
-      "url": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/b659dcb5f570bed77471ce791165f1c250b7f988/artifacts/v4.1.1/install-manifest.v1.json",
+      "url": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/4271b5acacc6eeb73cdfa6d916e8d0bfeb7b86b4/artifacts/v4.1.2/install-manifest.v1.json",
       "size": 9400,
-      "sha256": "79802ff46dde9bf1af9fa3c069825268865624ff6c8418ea9f47872e981a6b4b"
+      "sha256": "440109d11d6ce9d27040ddae8887599eebdac959c89595b8d86d92f55075ba7c"
     }
   },
   "quickstart": {
-    "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/2d75c54ab1def051bfb5ab2295262838b0113482/cohesivity.skill.md",
+    "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/f9aeec2e16dd5855f03d6a80e6a25c276052f93f/cohesivity.skill.md",
     "skill": {
-      "size": 22129,
-      "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+      "size": 22137,
+      "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
     },
     "archive": {
-      "url": "https://codeload.github.com/cohesivity-org/cohesivity-plugin/tar.gz/b659dcb5f570bed77471ce791165f1c250b7f988",
-      "size": 1938474,
-      "sha256": "e03987e3e2fafd33c0e52db8a48bd4a7a47f22956d1445a8a2fe9875eabeca31"
+      "url": "https://codeload.github.com/cohesivity-org/cohesivity-plugin/tar.gz/4271b5acacc6eeb73cdfa6d916e8d0bfeb7b86b4",
+      "size": 2067774,
+      "sha256": "c33fea5d26bac49fc79ac625f5d0316d05e8815789e4afa3bdb6ac49b04aa41f"
     }
   },
   "canonicalSkill": {
-    "size": 22129,
-    "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+    "size": 22137,
+    "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
   },
   "npmSkill": {
-    "size": 22129,
-    "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+    "size": 22137,
+    "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
   },
   "shellSkill": {
-    "size": 22129,
-    "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+    "size": 22137,
+    "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
   },
-  "npmPluginVersion": "4.1.1",
-  "shellPluginVersion": "4.1.1",
+  "npmPluginVersion": "4.1.2",
+  "shellPluginVersion": "4.1.2",
   "npmClientVersions": {
-    "portable": "4.1.1",
-    "claude": "4.1.1",
-    "codex": "4.1.1",
-    "gemini": "4.1.1",
-    "antigravity": "4.1.1",
-    "openai": "4.1.1"
+    "portable": "4.1.2",
+    "claude": "4.1.2",
+    "codex": "4.1.2",
+    "gemini": "4.1.2",
+    "antigravity": "4.1.2",
+    "openai": "4.1.2"
   },
   "shellClientVersions": {
-    "portable": "4.1.1",
-    "claude": "4.1.1",
-    "codex": "4.1.1",
-    "gemini": "4.1.1",
-    "antigravity": "4.1.1",
-    "openai": "4.1.1"
+    "portable": "4.1.2",
+    "claude": "4.1.2",
+    "codex": "4.1.2",
+    "gemini": "4.1.2",
+    "antigravity": "4.1.2",
+    "openai": "4.1.2"
   },
   "npmSkills": {
     "portable": {
-      "size": 22129,
-      "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+      "size": 22137,
+      "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
     },
     "claude": {
-      "size": 23359,
-      "sha256": "8ed89535242b2eea98726be922c711b47ce0a72a3252bf13ac88b86dec6c1f21"
+      "size": 23367,
+      "sha256": "e0baa82d7de1945a95bccfab3989ffd4fdc168ab4cd4526071aa95d416251f19"
     },
     "codex": {
-      "size": 22129,
-      "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+      "size": 22137,
+      "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
     },
     "gemini": {
-      "size": 22129,
-      "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+      "size": 22137,
+      "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
     },
     "antigravity": {
-      "size": 22129,
-      "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+      "size": 22137,
+      "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
     },
     "openai": {
-      "size": 22129,
-      "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+      "size": 22137,
+      "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
     }
   },
   "shellSkills": {
     "portable": {
-      "size": 22129,
-      "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+      "size": 22137,
+      "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
     },
     "claude": {
-      "size": 23359,
-      "sha256": "8ed89535242b2eea98726be922c711b47ce0a72a3252bf13ac88b86dec6c1f21"
+      "size": 23367,
+      "sha256": "e0baa82d7de1945a95bccfab3989ffd4fdc168ab4cd4526071aa95d416251f19"
     },
     "codex": {
-      "size": 22129,
-      "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+      "size": 22137,
+      "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
     },
     "gemini": {
-      "size": 22129,
-      "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+      "size": 22137,
+      "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
     },
     "antigravity": {
-      "size": 22129,
-      "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+      "size": 22137,
+      "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
     },
     "openai": {
-      "size": 22129,
-      "sha256": "d30a6b68c8a99c1ce1b26540ae51df3e8c8fe70af89acf06955b6a9fb679e3a4"
+      "size": 22137,
+      "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"
     }
   }
 }
