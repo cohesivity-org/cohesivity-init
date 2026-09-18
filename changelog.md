@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-18 — Bump plugin manifest pin to v4.0.3
+
+`PLUGIN_RELEASE` now points to cohesivity-plugin `627d5d9` (v4.0.3,
+PR #19). This completes the coordinated release for skill PR #10's
+MCP-line removal: the installed plugin archives carry the updated skill
+text. Release observation fixture regenerated with v4.0.3 archive
+fingerprints (codeload size 1,666,008, claude adapted skill 21,893 bytes).
+65/65 tests pass.
+
+### CICD classification
+Installer release inputs only. No npm publication in this PR.
+
 ## 2026-09-18 — Bump skill pin for MCP mutation fix
 
 Update `SKILL_PIN` from `dea8889b` to `bf7cd4e1` (cohesivity-skill PR #10).

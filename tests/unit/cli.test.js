@@ -1048,7 +1048,7 @@ test('artifact byte-size and SHA-256 pins are enforced before extraction', async
 });
 
 test('plugin pins are immutable and config formats are never regex-edited', () => {
-  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/81845011decc6081c0e82fe6f39ad35598f3fca8\/artifacts\/v4\.0\.2\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: 'd5634c7d8d1106cea11cb6620dda218f9727173e9ffd636843dc02142e5aaec4',\s*\}\);/);
+  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/627d5d94105bc7aed059280eb4e7787dcfa5e7cb\/artifacts\/v4\.0\.3\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: 'ba7952cabd2220d0ff821c1ad3cdbd6bb4b795f420c776b0f898351e01ae2014',\s*\}\);/);
   assert.match(cli, /spawnSync\(command, args, \{[\s\S]*shell: false/);
   assert.doesNotMatch(cli, /config\.(?:json|toml|yaml)[\s\S]{0,100}replace\(/i);
   assert.match(cli, /artifact link .* is not allowed/);
