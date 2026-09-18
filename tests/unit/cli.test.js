@@ -25,7 +25,7 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = readFileSync(join(ROOT, 'bin', 'cli.js'), 'utf8');
 
 test('PKG_VERSION matches package.json version', () => {
-  assert.equal(pkg.version, '0.8.2', 'the tenant-only release requires init 0.8.2');
+  assert.equal(pkg.version, '0.8.3', 'the feedback-tool release requires init 0.8.3');
   const m = cli.match(/^const PKG_VERSION = '([^']+)';$/m);
   assert.ok(m, 'PKG_VERSION not found in bin/cli.js');
   assert.equal(
@@ -132,8 +132,8 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.ok(m, 'SKILL_PIN not found in bin/cli.js');
   assert.equal(
     m[1],
-    'bf7cd4e14840c309a5db7fa17dc54623d629cd59',
-    'init 0.8.2 skill pin must match cohesivity-skill MCP-fix commit (version 6be708a4c601)',
+    '9ff9e4e527f94c21c97f5fdf1c6613f093fe5a57',
+    'init 0.8.3 skill pin must match the five-tool feedback guidance',
   );
   assert.match(
     m[1],
@@ -1048,7 +1048,7 @@ test('artifact byte-size and SHA-256 pins are enforced before extraction', async
 });
 
 test('plugin pins are immutable and config formats are never regex-edited', () => {
-  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/627d5d94105bc7aed059280eb4e7787dcfa5e7cb\/artifacts\/v4\.0\.3\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: 'ba7952cabd2220d0ff821c1ad3cdbd6bb4b795f420c776b0f898351e01ae2014',\s*\}\);/);
+  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/ca74403e148abdc2a585931692d97c51066e9a7f\/artifacts\/v4\.1\.0\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: 'c3c435061a392af1c39f222eaf895ea48a42a5fa4652d343d7f6df1ec400553f',\s*\}\);/);
   assert.match(cli, /spawnSync\(command, args, \{[\s\S]*shell: false/);
   assert.doesNotMatch(cli, /config\.(?:json|toml|yaml)[\s\S]{0,100}replace\(/i);
   assert.match(cli, /artifact link .* is not allowed/);

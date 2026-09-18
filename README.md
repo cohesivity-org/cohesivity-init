@@ -26,7 +26,7 @@ Portable directories are staged and atomically replaced.
 | Antigravity | `agy plugin install <verified-local-root>`; if `agy` is absent, atomically copy to `~/.gemini/config/plugins/cohesivity` only when an Antigravity-specific home is present |
 | OpenClaw | install `cohesivity` through the verified Claude marketplace root, enable it, then save the remote Streamable HTTP OAuth MCP |
 | Hermes | install the canonical skill and local server in Hermes-owned paths, import both MCP entries through `hermes import-agent ... --overwrite --yes`, then set the two enabled flags and dormant OAuth metadata with `hermes config set` |
-| OpenCode | preserve the verified portable package, install its skill to `~/.agents/skills/cohesivity`, then use `opencode mcp add` for the local four-tool server and remote management server |
+| OpenCode | preserve the verified portable package, install its skill to `~/.agents/skills/cohesivity`, then use `opencode mcp add` for the local five-tool server and remote management server |
 
 Detection is additive rather than first-match-wins. A Claude home does not stop
 Cursor, Codex, Gemini, Antigravity, OpenClaw, Hermes, or OpenCode from also being
@@ -181,6 +181,20 @@ The initializer's own bootstrap behavior is unchanged. Its six client archives,
 manifest, standalone skill, and quickstart release observation are pinned to
 verified immutable commits. Hosted fixes deploy separately through the core
 runtime/front-door release.
+
+## 0.8.3 service feedback tool
+
+Version 0.8.3 installs plugin 4.1.0 and the matching five-tool skill. Local and
+hosted `give_feedback` submit feedback on Cohesivity and its services anytime
+without asking the user, with instructions to exclude personal information
+and secrets. The tool requires existing tenant context and returns only a
+success receipt. Creation, claiming, and provisioning still require approval.
+Hosted connections must reconnect to grant `mcp:feedback:write` after the
+coordinated Worker release. The initializer's bootstrap behavior is unchanged.
+
+Publish initializer 0.8.3 before merging the matching Worker skill, standalone
+mirror, or plugin release. The immutable candidate commits can be verified
+before any merge; an open PR is not an npm publication.
 
 ## 0.8.0 optional MCP account access
 
