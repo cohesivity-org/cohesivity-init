@@ -374,3 +374,15 @@ regressions failed before the update. No tenant or feedback request was made.
 This is an installer release candidate under sibling `docs/CICD.md`. Publish
 0.8.3 before merging its matching Worker, plugin, or standalone skill guidance;
 this commit does not publish npm or deploy hosted MCP.
+
+## 2026-09-18 — Pin service feedback without discount side effects
+
+Keep initializer 0.8.3 and update its candidate pins to plugin 4.1.1 manifest
+`b659dcb5` and skill mirror `2d75c54a` (`5969c65d81bb`). Routine MCP feedback
+now uses the new service-only route, so it cannot consume a discount token
+that MCP does not return. Older backends fail closed; bootstrap is unchanged.
+
+Regenerate the release observation from downloaded immutable artifacts and
+the matching rendered quickstart/skill. Candidate verification passes, along
+with all 65 tests on Node 18.20.8 and 24.18.0 and whitespace checks. Publication
+still precedes the coordinated Worker/skill release. Nothing is published here.
