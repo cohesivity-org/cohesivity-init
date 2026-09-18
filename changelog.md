@@ -357,3 +357,40 @@ observation against the rendered core candidate. All 63 tests, CLI syntax,
 whitespace checks, and npm package dry-run pass. This installer release must
 publish before the matching core, plugin, and skill guidance is merged; it
 does not itself deploy hosted MCP.
+
+## 2026-09-18 — Deliver the MCP feedback tool
+
+Initializer 0.8.3 pins plugin 4.1.0 manifest `ca74403e` and canonical skill
+`3042cb861101` from mirror `9ff9e4e5`. All client packages now expose the fifth
+tool, `give_feedback`, with service-only feedback instructions and no per-call
+approval. Existing mutation gates remain. Bootstrap behavior is unchanged.
+
+The release verifier downloaded the immutable manifest, six archives, repository
+archive, and standalone skill to generate the coordinated observation against
+the rendered Worker candidate. All 65 tests pass on Node 18.20.8 and 24.18.0;
+syntax, whitespace, and npm package dry-run checks pass. The version/pin
+regressions failed before the update. No tenant or feedback request was made.
+
+This is an installer release candidate under sibling `docs/CICD.md`. Publish
+0.8.3 before merging its matching Worker, plugin, or standalone skill guidance;
+this commit does not publish npm or deploy hosted MCP.
+
+## 2026-09-18 — Pin service feedback without discount side effects
+
+Keep initializer 0.8.3 and update its candidate pins to plugin 4.1.1 manifest
+`b659dcb5` and skill mirror `2d75c54a` (`5969c65d81bb`). Routine MCP feedback
+now uses the new service-only route, so it cannot consume a discount token
+that MCP does not return. Older backends fail closed; bootstrap is unchanged.
+
+Regenerate the release observation from downloaded immutable artifacts and
+the matching rendered quickstart/skill. Candidate verification passes, along
+with all 65 tests on Node 18.20.8 and 24.18.0 and whitespace checks. Publication
+still precedes the coordinated Worker/skill release. Nothing is published here.
+
+## 2026-09-18 — Deliver the softer feedback description
+
+Keep candidate 0.8.3 and pin plugin 4.1.2 manifest `4271b5ac` plus skill
+`3a6cd8662a3b` from mirror `f9aeec2e`. Only the confirmation wording changes;
+bootstrap and tool behavior are unchanged. The downloaded candidate inputs
+agree across all six clients and quickstart. All 65 tests pass on Node
+18.20.8 and 24.18.0, with syntax and whitespace checks. No publication ran.
