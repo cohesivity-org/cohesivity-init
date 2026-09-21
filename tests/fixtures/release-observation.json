@@ -7,8 +7,8 @@
     "canonicalSkill": true
   },
   "installer": {
-    "version": "0.8.3",
-    "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/f9aeec2e16dd5855f03d6a80e6a25c276052f93f/cohesivity.skill.md",
+    "version": "0.8.4",
+    "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/ce021d9d5cf6dadd4dce30d71c2d880b9c0f4c48/cohesivity.skill.md",
     "manifest": {
       "url": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/4271b5acacc6eeb73cdfa6d916e8d0bfeb7b86b4/artifacts/v4.1.2/install-manifest.v1.json",
       "size": 9400,
@@ -16,7 +16,7 @@
     }
   },
   "quickstart": {
-    "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/f9aeec2e16dd5855f03d6a80e6a25c276052f93f/cohesivity.skill.md",
+    "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/ce021d9d5cf6dadd4dce30d71c2d880b9c0f4c48/cohesivity.skill.md",
     "skill": {
       "size": 22137,
       "sha256": "848be46405531411919b149b3fbd20b8753f1a05ca91140d8c724395b65113c0"

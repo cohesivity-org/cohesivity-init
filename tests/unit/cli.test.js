@@ -25,7 +25,7 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = readFileSync(join(ROOT, 'bin', 'cli.js'), 'utf8');
 
 test('PKG_VERSION matches package.json version', () => {
-  assert.equal(pkg.version, '0.8.3', 'the feedback-tool release requires init 0.8.3');
+  assert.equal(pkg.version, '0.8.4', 'COH-284 billing gate fix requires init 0.8.4');
   const m = cli.match(/^const PKG_VERSION = '([^']+)';$/m);
   assert.ok(m, 'PKG_VERSION not found in bin/cli.js');
   assert.equal(
@@ -132,8 +132,8 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.ok(m, 'SKILL_PIN not found in bin/cli.js');
   assert.equal(
     m[1],
-    'f9aeec2e16dd5855f03d6a80e6a25c276052f93f',
-    'init 0.8.3 skill pin must match the five-tool feedback guidance',
+    'ce021d9d5cf6dadd4dce30d71c2d880b9c0f4c48',
+    'init 0.8.4 skill pin must match COH-284 billing gate fix',
   );
   assert.match(
     m[1],
