@@ -1,5 +1,5 @@
 {
-  "observedAt": "2026-09-23T16:13:10.846Z",
+  "observedAt": "2026-09-23T17:06:07.540Z",
   "mode": "source candidate",
   "candidateSources": {
     "installer": true,
@@ -7,106 +7,106 @@
     "canonicalSkill": true
   },
   "installer": {
-    "version": "0.8.5",
-    "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/ce021d9d5cf6dadd4dce30d71c2d880b9c0f4c48/cohesivity.skill.md",
+    "version": "0.8.6",
+    "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/b4ce7217b942ea69f2dacde0d464c0a628857bee/cohesivity.skill.md",
     "manifest": {
-      "url": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/00ecd49b924ca3bd4e06fc768d0d0cbc151178e2/artifacts/v4.1.3/install-manifest.v1.json",
+      "url": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/770ba09804a4e15f2321e5bfab2afd7d8c8195d3/artifacts/v4.1.4/install-manifest.v1.json",
       "size": 9400,
-      "sha256": "32ec98692955b8a6f12be17031c758bf51726bb7952fcf7d1f1737e7ac5a474e"
+      "sha256": "482f6de00ede8d510a7b16052c7519d896efc74cf5f939e4d43fc64382374b60"
     }
   },
   "quickstart": {
-    "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/ce021d9d5cf6dadd4dce30d71c2d880b9c0f4c48/cohesivity.skill.md",
+    "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/b4ce7217b942ea69f2dacde0d464c0a628857bee/cohesivity.skill.md",
     "skill": {
       "size": 23408,
-      "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+      "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
     },
     "archive": {
-      "url": "https://codeload.github.com/cohesivity-org/cohesivity-plugin/tar.gz/00ecd49b924ca3bd4e06fc768d0d0cbc151178e2",
-      "size": 2208456,
-      "sha256": "302ac3456982c20e7d2142a13c697b0d0cc4cdd254667a0a73062e13e20121e7"
+      "url": "https://codeload.github.com/cohesivity-org/cohesivity-plugin/tar.gz/770ba09804a4e15f2321e5bfab2afd7d8c8195d3",
+      "size": 2343715,
+      "sha256": "ec08bb7e87efc0b9563314da282ce9a62386847f4ddf9cdff04f300210a70452"
     }
   },
   "canonicalSkill": {
     "size": 23408,
-    "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+    "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
   },
   "npmSkill": {
     "size": 23408,
-    "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+    "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
   },
   "shellSkill": {
     "size": 23408,
-    "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+    "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
   },
-  "npmPluginVersion": "4.1.3",
-  "shellPluginVersion": "4.1.3",
+  "npmPluginVersion": "4.1.4",
+  "shellPluginVersion": "4.1.4",
   "npmClientVersions": {
-    "portable": "4.1.3",
-    "claude": "4.1.3",
-    "codex": "4.1.3",
-    "gemini": "4.1.3",
-    "antigravity": "4.1.3",
-    "openai": "4.1.3"
+    "portable": "4.1.4",
+    "claude": "4.1.4",
+    "codex": "4.1.4",
+    "gemini": "4.1.4",
+    "antigravity": "4.1.4",
+    "openai": "4.1.4"
   },
   "shellClientVersions": {
-    "portable": "4.1.3",
-    "claude": "4.1.3",
-    "codex": "4.1.3",
-    "gemini": "4.1.3",
-    "antigravity": "4.1.3",
-    "openai": "4.1.3"
+    "portable": "4.1.4",
+    "claude": "4.1.4",
+    "codex": "4.1.4",
+    "gemini": "4.1.4",
+    "antigravity": "4.1.4",
+    "openai": "4.1.4"
   },
   "npmSkills": {
     "portable": {
       "size": 23408,
-      "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+      "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
     },
     "claude": {
       "size": 24638,
-      "sha256": "604dfd9e243a6e8fa909e17b500196d9b8c0e95be4c779049d3712660a128a0b"
+      "sha256": "0a8f89483735c46940c2fe53e106a30af7b3d08daeadddbc240e18fcc7252dd8"
     },
     "codex": {
       "size": 23408,
-      "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+      "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
     },
     "gemini": {
       "size": 23408,
-      "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+      "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
     },
     "antigravity": {
       "size": 23408,
-      "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+      "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
     },
     "openai": {
       "size": 23408,
-      "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+      "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
     }
   },
   "shellSkills": {
     "portable": {
       "size": 23408,
-      "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+      "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
     },
     "claude": {
       "size": 24638,
-      "sha256": "604dfd9e243a6e8fa909e17b500196d9b8c0e95be4c779049d3712660a128a0b"
+      "sha256": "0a8f89483735c46940c2fe53e106a30af7b3d08daeadddbc240e18fcc7252dd8"
     },
     "codex": {
       "size": 23408,
-      "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+      "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
     },
     "gemini": {
       "size": 23408,
-      "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+      "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
     },
     "antigravity": {
       "size": 23408,
-      "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+      "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
     },
     "openai": {
       "size": 23408,
-      "sha256": "c5903bc513c4e70d92a13ef7cb3ddd1a46cb7fb2692d06405bb1d6f39343824e"
+      "sha256": "a3bf2ae8379375a4c247acf09f5d78e1c2ebcf6b325d22f8ffbec562ccff6460"
     }
   }
 }
