@@ -44,7 +44,7 @@ import { gunzipSync } from 'node:zlib';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
-const PKG_VERSION = '0.8.4';
+const PKG_VERSION = '0.8.5';
 
 function validateArgs() {
   const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--tenant-only', '--help', '-h']);
@@ -85,9 +85,9 @@ const SKILL_URL = `https://raw.githubusercontent.com/cohesivity-org/cohesivity-s
 // after publishing a new two-commit artifact manifest from cohesivity-plugin.
 // Tests inject a complete pin with COHESIVITY_PLUGIN_MANIFEST_PIN.
 const PLUGIN_RELEASE = Object.freeze({
-  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/4271b5acacc6eeb73cdfa6d916e8d0bfeb7b86b4/artifacts/v4.1.2/install-manifest.v1.json',
+  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/00ecd49b924ca3bd4e06fc768d0d0cbc151178e2/artifacts/v4.1.3/install-manifest.v1.json',
   manifestBytes: 9400,
-  manifestSha256: '440109d11d6ce9d27040ddae8887599eebdac959c89595b8d86d92f55075ba7c',
+  manifestSha256: '32ec98692955b8a6f12be17031c758bf51726bb7952fcf7d1f1737e7ac5a474e',
 });
 
 const ARTIFACT_KEYS = Object.freeze({
