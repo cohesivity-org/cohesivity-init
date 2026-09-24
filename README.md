@@ -40,17 +40,23 @@ adapter.
 
 Known adapters without a Cohesivity plugin package receive the canonical
 standalone skill plus the remote MCP endpoint
-`https://cohesivity.ai/mcp/manage`, configured through the adapter's documented
+`https://cohesivity.ai/mcp`, configured through the adapter's documented
 native command. The installer currently supports this fallback for GitHub
 Copilot CLI, VS Code, Cline CLI, and Grok. It does not modify JSON, TOML, or YAML
 configuration with regular expressions.
 
 The installer never starts OAuth or opens a browser. It prints the relevant
-restart and authentication steps after delivery. Three MCP surfaces have
-different boundaries: the public documentation server at
-`https://cohesivity.ai/mcp` needs no login, the installed local project-bootstrap
-server needs no login, and `https://cohesivity.ai/mcp/manage` requires OAuth for
-account-scoped management. OpenCode users start that last flow explicitly with
+restart and authentication steps after delivery. Two MCP surfaces have
+different boundaries, and neither needs a login: the installed local
+project-bootstrap server, and the hosted server at `https://cohesivity.ai/mcp`,
+which serves documentation and management publicly and accepts optional account
+OAuth. The former `https://cohesivity.ai/mcp/manage` endpoint is retired and
+returns HTTP 410. Rerunning this installer reinstalls plugin packages and the
+Hermes import with the new URL. Entries added through a client's own `mcp add`
+command (OpenCode and the fallback adapters) are replaced only if that client
+overwrites an existing `cohesivity` entry; otherwise remove the old entry first.
+Clients that signed in before the move sign in again. OpenCode users
+start optional account sign-in explicitly with
 `opencode mcp auth cohesivity`. Hermes uses the exact native server name
 `cohesivity`; `hermes mcp login cohesivity` starts its management OAuth flow.
 The Cohesivity endpoint advertises Dynamic Client Registration, so Hermes does

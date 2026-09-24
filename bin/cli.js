@@ -44,7 +44,7 @@ import { gunzipSync } from 'node:zlib';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
-const PKG_VERSION = '0.8.6';
+const PKG_VERSION = '0.9.0';
 
 function validateArgs() {
   const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--tenant-only', '--help', '-h']);
@@ -63,7 +63,7 @@ if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
-const MCP_URL = 'https://cohesivity.ai/mcp/manage';
+const MCP_URL = 'https://cohesivity.ai/mcp';
 
 // Machine id: one per machine, stored outside any project. A project's
 // .cohesivity is per project, so a machine that runs setup in several projects
@@ -78,16 +78,16 @@ const MACHINE_ID_FILE = join(MACHINE_ID_DIR, 'machine-id');
 
 // The skill is pinned to an immutable commit in the public, auditable repo.
 // Bumping the pin is a deliberate release step. See COH-172.
-const SKILL_PIN = 'b4ce7217b942ea69f2dacde0d464c0a628857bee';
+const SKILL_PIN = '8703edc648453b6fa45300e380510dda77452071';
 const SKILL_URL = `https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/${SKILL_PIN}/cohesivity.skill.md`;
 
 // Plugin release pins live in this one block. Bump all three values together
 // after publishing a new two-commit artifact manifest from cohesivity-plugin.
 // Tests inject a complete pin with COHESIVITY_PLUGIN_MANIFEST_PIN.
 const PLUGIN_RELEASE = Object.freeze({
-  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/770ba09804a4e15f2321e5bfab2afd7d8c8195d3/artifacts/v4.1.4/install-manifest.v1.json',
+  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/2da59bc6308e3eda461e7fa1b0468f44a2473aa7/artifacts/v5.0.0/install-manifest.v1.json',
   manifestBytes: 9400,
-  manifestSha256: '482f6de00ede8d510a7b16052c7519d896efc74cf5f939e4d43fc64382374b60',
+  manifestSha256: '11d44d171299091b061e35b82dcb78e3b1d4ba2bf44ea520239e9862e0e21e58',
 });
 
 const ARTIFACT_KEYS = Object.freeze({

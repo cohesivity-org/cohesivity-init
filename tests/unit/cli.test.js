@@ -25,7 +25,7 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = readFileSync(join(ROOT, 'bin', 'cli.js'), 'utf8');
 
 test('PKG_VERSION matches package.json version', () => {
-  assert.equal(pkg.version, '0.8.6', 'COH-294 plugin 4.1.4 requires init 0.8.6');
+  assert.equal(pkg.version, '0.9.0', 'COH-296 plugin 5.0.0 requires init 0.9.0');
   const m = cli.match(/^const PKG_VERSION = '([^']+)';$/m);
   assert.ok(m, 'PKG_VERSION not found in bin/cli.js');
   assert.equal(
@@ -132,8 +132,8 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.ok(m, 'SKILL_PIN not found in bin/cli.js');
   assert.equal(
     m[1],
-    'b4ce7217b942ea69f2dacde0d464c0a628857bee',
-    'init 0.8.6 skill pin must match the COH-294 fallback skill',
+    '8703edc648453b6fa45300e380510dda77452071',
+    'init 0.9.0 skill pin must match the COH-296 unified-MCP skill',
   );
   assert.match(
     m[1],
@@ -344,7 +344,7 @@ function fakeClients(home, names, failing = null) {
       `  const key = row.args[2];\n` +
       `  const values = {\n` +
       `    'mcp_servers.cohesivity-local': { command: process.execPath, args: [process.env.HOME + '/.hermes/mcp/cohesivity/project-bootstrap.mjs'], enabled: true },\n` +
-      `    'mcp_servers.cohesivity': { url: 'https://cohesivity.ai/mcp/manage', auth: 'oauth', enabled: true },\n` +
+      `    'mcp_servers.cohesivity': { url: 'https://cohesivity.ai/mcp', auth: 'oauth', enabled: true },\n` +
       `  };\n` +
       `  process.stdout.write(row.args.includes('--json') ? JSON.stringify(values[key]) : String(values[key]));\n` +
       `}\n` +
@@ -659,7 +659,7 @@ test('plain mode detects every supported client independently and uses the Task 
       assert.ok(commands.some((row) => row.command === 'agy' && JSON.stringify(row.args) === JSON.stringify(['plugin', 'install', join(durableRoot, 'antigravity')])));
       assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'install', 'cohesivity', '--marketplace', join(durableRoot, 'openclaw'), '--force'])));
       assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'enable', 'cohesivity'])));
-      assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['mcp', 'set', 'cohesivity', JSON.stringify({ url: 'https://cohesivity.ai/mcp/manage', transport: 'streamable-http', auth: 'oauth' })])));
+      assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['mcp', 'set', 'cohesivity', JSON.stringify({ url: 'https://cohesivity.ai/mcp', transport: 'streamable-http', auth: 'oauth' })])));
       assert.ok(commands.some((row) => row.command === 'hermes' && row.args[0] === 'import-agent'
         && row.args[1] === 'claude-code' && row.args.includes('--overwrite') && row.args.includes('--yes')));
       assert.ok(commands.some((row) => row.command === 'hermes' && JSON.stringify(row.args) === JSON.stringify([
@@ -669,7 +669,7 @@ test('plain mode detects every supported client independently and uses the Task 
         'mcp', 'add', 'cohesivity-local', '--', 'node', join(durableRoot, 'opencode', 'mcp', 'project-bootstrap.mjs'),
       ])));
       assert.ok(commands.some((row) => row.command === 'opencode' && JSON.stringify(row.args) === JSON.stringify([
-        'mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp/manage',
+        'mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp',
       ])));
       for (const client of ['claude', 'codex', 'gemini', 'antigravity', 'openclaw', 'opencode']) {
         assert.ok(existsSync(join(durableRoot, client)), `${client} keeps a durable verified package root`);
@@ -736,9 +736,9 @@ test('OpenCode native MCP reconciliation is idempotent and never starts OAuth', 
       const durable = join(home, '.local', 'share', 'cohesivity', 'plugin-packages', 'opencode');
       assert.deepEqual(readCommands(fake.commandLog).map((row) => row.args), [
         ['mcp', 'add', 'cohesivity-local', '--', 'node', join(durable, 'mcp', 'project-bootstrap.mjs')],
-        ['mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp/manage'],
+        ['mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp'],
         ['mcp', 'add', 'cohesivity-local', '--', 'node', join(durable, 'mcp', 'project-bootstrap.mjs')],
-        ['mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp/manage'],
+        ['mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp'],
       ]);
       assert.equal(readFileSync(join(home, '.agents', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL);
       assert.ok(readCommands(fake.commandLog).every((row) => !row.args.includes('auth')));
@@ -813,7 +813,7 @@ test('unsupported detected adapters receive only the standalone skill and native
       await runCli(base, home, project, [], { plugins: true, env: fake.env });
       assert.equal(readFileSync(join(home, '.agents', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL);
       assert.deepEqual(readCommands(fake.commandLog), [{
-        command: 'grok', args: ['mcp', 'add', '--transport', 'http', 'cohesivity', 'https://cohesivity.ai/mcp/manage'],
+        command: 'grok', args: ['mcp', 'add', '--transport', 'http', 'cohesivity', 'https://cohesivity.ai/mcp'],
       }]);
       assert.ok(!requests.some((request) => request.includes('/plugins/')), 'fallback adapters need no plugin artifact');
     } finally {
@@ -1048,7 +1048,7 @@ test('artifact byte-size and SHA-256 pins are enforced before extraction', async
 });
 
 test('plugin pins are immutable and config formats are never regex-edited', () => {
-  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/770ba09804a4e15f2321e5bfab2afd7d8c8195d3\/artifacts\/v4\.1\.4\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: '482f6de00ede8d510a7b16052c7519d896efc74cf5f939e4d43fc64382374b60',\s*\}\);/);
+  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/2da59bc6308e3eda461e7fa1b0468f44a2473aa7\/artifacts\/v5\.0\.0\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: '11d44d171299091b061e35b82dcb78e3b1d4ba2bf44ea520239e9862e0e21e58',\s*\}\);/);
   assert.match(cli, /spawnSync\(command, args, \{[\s\S]*shell: false/);
   assert.doesNotMatch(cli, /config\.(?:json|toml|yaml)[\s\S]{0,100}replace\(/i);
   assert.match(cli, /artifact link .* is not allowed/);
