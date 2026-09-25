@@ -542,3 +542,17 @@ artifacts and the rendered quickstart/skill candidates: init 0.9.0, plugin
 5.0.0, all six client skills match. All 73 tests pass on Node 18 and 22.
 
 Refs COH-296
+
+## 2026-09-25 — Report a disabled Copilot entry on /mcp instead of calling it installed
+
+Greptile's review of bfbf175: when Copilot already had a `cohesivity` entry on
+`/mcp` that the user had disabled, `runFallbackAdapter` checked only the URL,
+logged "already points to", and setup reported the integration installed while
+Copilot kept the server off. It now fails that delivery with the
+`copilot mcp enable cohesivity` step and leaves the entry disabled. Turning it
+back on automatically was the alternative, but setup should not override a
+server the user switched off. A new test fails before the change; all 74 pass
+on Node 18 and 22. Against real Copilot 1.0.88, setup reported the enable step,
+the entry stayed disabled, and the printed command enabled it.
+
+Refs COH-296

@@ -383,9 +383,11 @@ function fakeClientsWithExistingEntry(home, names, existing, entry = RETIRED_ENT
   return { ...fake, env: { ...fake.env, EXISTING_MCP: existing, EXISTING_MCP_ENTRY: JSON.stringify(entry), ...extraEnv } };
 }
 
-function savedEntry(home, command) {
+// The fake writes its state only after a change; until then the saved entry is
+// the one the test seeded.
+function savedEntry(home, command, seeded = RETIRED_ENTRY) {
   const state = join(home, `.${command}-mcp.json`);
-  return existsSync(state) ? JSON.parse(readFileSync(state, 'utf8')).cohesivity : RETIRED_ENTRY;
+  return existsSync(state) ? JSON.parse(readFileSync(state, 'utf8')).cohesivity : seeded;
 }
 
 function readCommands(file) {
@@ -887,6 +889,21 @@ test('fallback adapters leave an entry that already points to /mcp in place', as
     assert.deepEqual(readCommands(fake.commandLog), [COPILOT_ADD, COPILOT_LIST]);
     assert.match(out, /GitHub Copilot CLI already points to https:\/\/cohesivity\.ai\/mcp/);
     assert.doesNotMatch(out, /delivery incomplete|delivery failed/i);
+  });
+});
+
+test('fallback adapters report a disabled entry on /mcp instead of calling it installed', async () => {
+  await withFallbackRun(async (base, home, project) => {
+    const disabled = { ...RETIRED_ENTRY, url: 'https://cohesivity.ai/mcp', enabled: false };
+    const fake = fakeClientsWithExistingEntry(home, ['copilot'], 'copilot', disabled);
+    const result = await runCli(base, home, project, [], { plugins: true, env: fake.env, result: true }).catch((error) => error);
+    assert.notEqual(result.code ?? result.status, 0);
+    assert.deepEqual(readCommands(fake.commandLog), [COPILOT_ADD, COPILOT_LIST]);
+    assert.deepEqual(savedEntry(home, 'copilot', disabled), disabled);
+    const output = `${result.stdout}${result.stderr}`;
+    assert.match(output, /already points to https:\/\/cohesivity\.ai\/mcp but is disabled/);
+    assert.match(output, /copilot mcp enable cohesivity/);
+    assert.doesNotMatch(output, /GitHub Copilot CLI already points to https:\/\/cohesivity\.ai\/mcp\n/);
   });
 });
 

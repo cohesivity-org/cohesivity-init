@@ -248,6 +248,7 @@ const MCP_REMOVE = ['mcp', 'remove', 'cohesivity'];
 const COPILOT_PLAIN_ENTRY_KEYS = new Set(['type', 'url', 'tools', 'source', 'enabled']);
 const COPILOT_REPLACE = {
   listArgs: ['mcp', 'list', '--json'],
+  enableArgs: ['mcp', 'enable', 'cohesivity'],
   entry: (listed) => listed?.mcpServers?.cohesivity || null,
   restoreArgs(entry) {
     const plain = Object.keys(entry).every((key) => COPILOT_PLAIN_ENTRY_KEYS.has(key))
@@ -378,7 +379,14 @@ function runFallbackAdapter(adapter) {
     if (!adapter.replace) throw manualReplacement(adapter, error.message);
   }
   const entry = adapter.replace.entry(runNativeJson(adapter.bin, adapter.replace.listArgs));
-  if (entry?.url === MCP_URL) { log(`${adapter.name} already points to ${MCP_URL}`); return; }
+  if (entry?.url === MCP_URL) {
+    if (entry.enabled === false) {
+      throw new Error(`the existing cohesivity entry already points to ${MCP_URL} but is disabled in ${adapter.name}; ` +
+        `setup left it disabled, and \`${formatCommand(adapter.bin, adapter.replace.enableArgs)}\` turns it on`);
+    }
+    log(`${adapter.name} already points to ${MCP_URL}`);
+    return;
+  }
   if (!entry) throw manualReplacement(adapter, `${formatCommand(adapter.bin, adapter.replace.listArgs)} did not list the existing cohesivity entry`);
   const restore = adapter.replace.restoreArgs(entry);
   if (!restore) {
