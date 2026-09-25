@@ -25,7 +25,7 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = readFileSync(join(ROOT, 'bin', 'cli.js'), 'utf8');
 
 test('PKG_VERSION matches package.json version', () => {
-  assert.equal(pkg.version, '0.9.0', 'COH-296 plugin 5.0.0 requires init 0.9.0');
+  assert.equal(pkg.version, '0.9.1', 'COH-297 plugin 5.0.2 requires init 0.9.1');
   const m = cli.match(/^const PKG_VERSION = '([^']+)';$/m);
   assert.ok(m, 'PKG_VERSION not found in bin/cli.js');
   assert.equal(
@@ -132,8 +132,8 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.ok(m, 'SKILL_PIN not found in bin/cli.js');
   assert.equal(
     m[1],
-    'dd8df44d38749ea08903844368f73609cd00f69b',
-    'init 0.9.0 skill pin must match the COH-296 unified-MCP skill',
+    '18c5f37cfe6e2eb165df3ecde588294b7c9a17d3',
+    'init 0.9.1 skill pin must match the COH-297 fallback skill',
   );
   assert.match(
     m[1],
@@ -1219,7 +1219,7 @@ test('artifact byte-size and SHA-256 pins are enforced before extraction', async
 });
 
 test('plugin pins are immutable and config formats are never regex-edited', () => {
-  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/50cb3fa2b80dcb35d13046ce927acd4ebb816f23\/artifacts\/v5\.0\.0\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: '97afafe1fdd02f1a301bc09e68ce2284b7c1cc3b0d5b1c4062e1234194d537e6',\s*\}\);/);
+  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/9bb263677fc8d2ead506d21de6b284a5cd5078de\/artifacts\/v5\.0\.2\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: '146985fde9229544da3bd1a8c793c180da8593ccd0a7b44b1a966f5ddea0b731',\s*\}\);/);
   assert.match(cli, /spawnSync\(command, args, \{[\s\S]*shell: false/);
   assert.doesNotMatch(cli, /config\.(?:json|toml|yaml)[\s\S]{0,100}replace\(/i);
   assert.match(cli, /artifact link .* is not allowed/);
