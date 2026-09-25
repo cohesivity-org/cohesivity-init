@@ -40,17 +40,31 @@ adapter.
 
 Known adapters without a Cohesivity plugin package receive the canonical
 standalone skill plus the remote MCP endpoint
-`https://cohesivity.ai/mcp/manage`, configured through the adapter's documented
+`https://cohesivity.ai/mcp`, configured through the adapter's documented
 native command. The installer currently supports this fallback for GitHub
 Copilot CLI, VS Code, Cline CLI, and Grok. It does not modify JSON, TOML, or YAML
 configuration with regular expressions.
 
 The installer never starts OAuth or opens a browser. It prints the relevant
-restart and authentication steps after delivery. Three MCP surfaces have
-different boundaries: the public documentation server at
-`https://cohesivity.ai/mcp` needs no login, the installed local project-bootstrap
-server needs no login, and `https://cohesivity.ai/mcp/manage` requires OAuth for
-account-scoped management. OpenCode users start that last flow explicitly with
+restart and authentication steps after delivery. Two MCP surfaces have
+different boundaries, and neither needs a login: the installed local
+project-bootstrap server, and the hosted server at `https://cohesivity.ai/mcp`,
+which serves documentation and management publicly and accepts optional account
+OAuth. The former `https://cohesivity.ai/mcp/manage` endpoint is retired and
+returns HTTP 410. Rerunning this installer moves configured clients to the new
+URL: plugin packages and the Hermes import are reinstalled, OpenCode and Cline
+overwrite their `cohesivity` entry on `mcp add`. GitHub Copilot CLI refuses a
+duplicate, so after `mcp add` reports that the entry already exists, the
+installer reads it with `copilot mcp list --json`. An enabled entry already on
+the new URL is left alone; a disabled one stays disabled, and setup reports
+`copilot mcp enable cohesivity` instead of calling it installed. A plain remote entry on another URL is removed and added
+again, and if that add fails the previous entry is added back. An entry with
+headers, env, a tool filter, a timeout, or a disabled state is left unchanged,
+and setup reports `copilot mcp remove cohesivity` as the manual step. Grok gets
+the same manual step instead of a removal, because its CLI's entry format was
+not verified. VS Code's `--add-mcp` behavior on an existing entry was not
+verified. `--dry-run` prints the conditional Copilot replacement. Clients that signed in before the move sign in again. OpenCode users
+start optional account sign-in explicitly with
 `opencode mcp auth cohesivity`. Hermes uses the exact native server name
 `cohesivity`; `hermes mcp login cohesivity` starts its management OAuth flow.
 The Cohesivity endpoint advertises Dynamic Client Registration, so Hermes does

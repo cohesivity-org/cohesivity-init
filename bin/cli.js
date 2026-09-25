@@ -44,7 +44,7 @@ import { gunzipSync } from 'node:zlib';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
-const PKG_VERSION = '0.8.6';
+const PKG_VERSION = '0.9.0';
 
 function validateArgs() {
   const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--tenant-only', '--help', '-h']);
@@ -63,7 +63,7 @@ if (has('--help') || has('-h')) { help(); process.exit(0); }
 
 // ── config ──────────────────────────────────────────────────────────────────
 const BASE = (flag('--base') || process.env.COHESIVITY_BASE || 'https://cohesivity.ai').replace(/\/+$/, '');
-const MCP_URL = 'https://cohesivity.ai/mcp/manage';
+const MCP_URL = 'https://cohesivity.ai/mcp';
 
 // Machine id: one per machine, stored outside any project. A project's
 // .cohesivity is per project, so a machine that runs setup in several projects
@@ -78,16 +78,16 @@ const MACHINE_ID_FILE = join(MACHINE_ID_DIR, 'machine-id');
 
 // The skill is pinned to an immutable commit in the public, auditable repo.
 // Bumping the pin is a deliberate release step. See COH-172.
-const SKILL_PIN = 'b4ce7217b942ea69f2dacde0d464c0a628857bee';
+const SKILL_PIN = 'dd8df44d38749ea08903844368f73609cd00f69b';
 const SKILL_URL = `https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/${SKILL_PIN}/cohesivity.skill.md`;
 
 // Plugin release pins live in this one block. Bump all three values together
 // after publishing a new two-commit artifact manifest from cohesivity-plugin.
 // Tests inject a complete pin with COHESIVITY_PLUGIN_MANIFEST_PIN.
 const PLUGIN_RELEASE = Object.freeze({
-  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/770ba09804a4e15f2321e5bfab2afd7d8c8195d3/artifacts/v4.1.4/install-manifest.v1.json',
+  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/50cb3fa2b80dcb35d13046ce927acd4ebb816f23/artifacts/v5.0.0/install-manifest.v1.json',
   manifestBytes: 9400,
-  manifestSha256: '482f6de00ede8d510a7b16052c7519d896efc74cf5f939e4d43fc64382374b60',
+  manifestSha256: '97afafe1fdd02f1a301bc09e68ce2284b7c1cc3b0d5b1c4062e1234194d537e6',
 });
 
 const ARTIFACT_KEYS = Object.freeze({
@@ -238,15 +238,37 @@ function detectClients() {
   ].filter((client) => client.detected);
 }
 
+// GitHub Copilot CLI refuses `mcp add` over an existing `cohesivity` entry, so a
+// rerun could not move an entry from the retired /mcp/manage URL to MCP_URL.
+// `replace` reads the saved entry first and removes it only when it is a plain
+// remote entry that `restoreArgs` can add back exactly, so a failed re-add never
+// leaves the client without its previous entry. Adapters without `replace`
+// never remove anything; they report the manual step instead.
+const MCP_REMOVE = ['mcp', 'remove', 'cohesivity'];
+const COPILOT_PLAIN_ENTRY_KEYS = new Set(['type', 'url', 'tools', 'source', 'enabled']);
+const COPILOT_REPLACE = {
+  listArgs: ['mcp', 'list', '--json'],
+  enableArgs: ['mcp', 'enable', 'cohesivity'],
+  entry: (listed) => listed?.mcpServers?.cohesivity || null,
+  restoreArgs(entry) {
+    const plain = Object.keys(entry).every((key) => COPILOT_PLAIN_ENTRY_KEYS.has(key))
+      && (entry.type === 'http' || entry.type === 'sse')
+      && typeof entry.url === 'string' && /^https?:\/\//.test(entry.url)
+      && (entry.tools === undefined || (Array.isArray(entry.tools) && entry.tools.length === 1 && entry.tools[0] === '*'))
+      && (entry.source === undefined || entry.source === 'user')
+      && (entry.enabled === undefined || entry.enabled === true);
+    return plain ? ['mcp', 'add', '--transport', entry.type, 'cohesivity', entry.url] : null;
+  },
+};
 const FALLBACK_ADAPTERS = [
-  { id: 'copilot', name: 'GitHub Copilot CLI', bins: ['copilot'], args: [
+  { id: 'copilot', name: 'GitHub Copilot CLI', bins: ['copilot'], replace: COPILOT_REPLACE, args: [
     'mcp', 'add', '--transport', 'http', 'cohesivity', MCP_URL,
   ] },
   { id: 'vscode', name: 'VS Code', bins: ['code'], args: [
     '--add-mcp', JSON.stringify({ name: 'cohesivity', type: 'http', url: MCP_URL }),
   ] },
   { id: 'cline', name: 'Cline CLI', bins: ['cline'], args: [
-    'mcp', 'add', 'cohesivity', MCP_URL, '--type', 'http',
+    'mcp', 'add', 'cohesivity', MCP_URL, '--transport', 'http', '--yes',
   ] },
   { id: 'grok', name: 'Grok', bins: ['grok'], args: [
     'mcp', 'add', '--transport', 'http', 'cohesivity', MCP_URL,
@@ -327,20 +349,65 @@ async function installClientIntegrations() {
     if (skillError) failures.push({ client: 'standalone skill', message: skillError.message });
     for (const adapter of adapters) {
       if (DRY) {
-        act(`run ${formatCommand(adapter.bin || adapter.bins[0], adapter.args)}`);
+        const bin = adapter.bin || adapter.bins[0];
+        act(`run ${formatCommand(bin, adapter.args)}`);
+        if (adapter.replace) {
+          act(`replace an existing cohesivity entry that points elsewhere: ${formatCommand(bin, adapter.replace.listArgs)}, ` +
+            `${formatCommand(bin, MCP_REMOVE)}, then the same add; the previous entry is added back if that add fails`);
+        }
         continue;
       }
       if (!adapter.bin) {
         failures.push({ client: adapter.name, message: 'client state exists but its native CLI is not on PATH' });
         continue;
       }
-      try { runNative(adapter.bin, adapter.args); }
+      try { runFallbackAdapter(adapter); }
       catch (error) { failures.push({ client: adapter.name, message: error.message }); }
     }
   }
 
   printClientInstructions(clients, adapters);
   return failures;
+}
+
+function runFallbackAdapter(adapter) {
+  try {
+    runNative(adapter.bin, adapter.args);
+    return;
+  } catch (error) {
+    if (!/already exists/i.test(error.message)) throw error;
+    if (!adapter.replace) throw manualReplacement(adapter, error.message);
+  }
+  const entry = adapter.replace.entry(runNativeJson(adapter.bin, adapter.replace.listArgs));
+  if (entry?.url === MCP_URL) {
+    if (entry.enabled === false) {
+      throw new Error(`the existing cohesivity entry already points to ${MCP_URL} but is disabled in ${adapter.name}; ` +
+        `setup left it disabled, and \`${formatCommand(adapter.bin, adapter.replace.enableArgs)}\` turns it on`);
+    }
+    log(`${adapter.name} already points to ${MCP_URL}`);
+    return;
+  }
+  if (!entry) throw manualReplacement(adapter, `${formatCommand(adapter.bin, adapter.replace.listArgs)} did not list the existing cohesivity entry`);
+  const restore = adapter.replace.restoreArgs(entry);
+  if (!restore) {
+    throw manualReplacement(adapter, 'the existing cohesivity entry has settings setup could not add back ' +
+      '(headers, env, a tool filter, a timeout, or a disabled state)');
+  }
+  runNative(adapter.bin, MCP_REMOVE);
+  try {
+    runNative(adapter.bin, adapter.args);
+  } catch (error) {
+    try { runNative(adapter.bin, restore); }
+    catch (restoreError) {
+      throw new Error(`${error.message}; adding back the previous entry (${entry.url}) also failed: ${restoreError.message}`);
+    }
+    throw new Error(`${error.message}; the previous entry (${entry.url}) was restored`);
+  }
+}
+
+function manualReplacement(adapter, reason) {
+  return new Error(`${reason}. Setup left that entry unchanged; running ` +
+    `\`${formatCommand(adapter.bin, MCP_REMOVE)}\` and then setup again moves it to ${MCP_URL}`);
 }
 
 function manifestPin() {

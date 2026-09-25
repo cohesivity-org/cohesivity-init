@@ -25,7 +25,7 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = readFileSync(join(ROOT, 'bin', 'cli.js'), 'utf8');
 
 test('PKG_VERSION matches package.json version', () => {
-  assert.equal(pkg.version, '0.8.6', 'COH-294 plugin 4.1.4 requires init 0.8.6');
+  assert.equal(pkg.version, '0.9.0', 'COH-296 plugin 5.0.0 requires init 0.9.0');
   const m = cli.match(/^const PKG_VERSION = '([^']+)';$/m);
   assert.ok(m, 'PKG_VERSION not found in bin/cli.js');
   assert.equal(
@@ -132,8 +132,8 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.ok(m, 'SKILL_PIN not found in bin/cli.js');
   assert.equal(
     m[1],
-    'b4ce7217b942ea69f2dacde0d464c0a628857bee',
-    'init 0.8.6 skill pin must match the COH-294 fallback skill',
+    'dd8df44d38749ea08903844368f73609cd00f69b',
+    'init 0.9.0 skill pin must match the COH-296 unified-MCP skill',
   );
   assert.match(
     m[1],
@@ -344,18 +344,50 @@ function fakeClients(home, names, failing = null) {
       `  const key = row.args[2];\n` +
       `  const values = {\n` +
       `    'mcp_servers.cohesivity-local': { command: process.execPath, args: [process.env.HOME + '/.hermes/mcp/cohesivity/project-bootstrap.mjs'], enabled: true },\n` +
-      `    'mcp_servers.cohesivity': { url: 'https://cohesivity.ai/mcp/manage', auth: 'oauth', enabled: true },\n` +
+      `    'mcp_servers.cohesivity': { url: 'https://cohesivity.ai/mcp', auth: 'oauth', enabled: true },\n` +
       `  };\n` +
       `  process.stdout.write(row.args.includes('--json') ? JSON.stringify(values[key]) : String(values[key]));\n` +
       `}\n` +
       `appendFileSync(process.env.COMMAND_LOG, JSON.stringify(row) + '\\n');\n` +
-      `if (process.env.FAIL_COMMAND === row.command) { console.error('fixture delivery failure'); process.exit(23); }\n`);
+      `if (process.env.FAIL_COMMAND === row.command) { console.error('fixture delivery failure'); process.exit(23); }\n` +
+      `if (process.env.EXISTING_MCP === row.command && row.args[0] === 'mcp') {\n` +
+      `  const { existsSync, readFileSync, writeFileSync } = require('node:fs');\n` +
+      `  const state = process.env.HOME + '/.' + row.command + '-mcp.json';\n` +
+      `  const servers = existsSync(state) ? JSON.parse(readFileSync(state, 'utf8')) : { cohesivity: JSON.parse(process.env.EXISTING_MCP_ENTRY) };\n` +
+      `  const save = () => writeFileSync(state, JSON.stringify(servers));\n` +
+      `  if (row.args[1] === 'list') { process.stdout.write(JSON.stringify({ mcpServers: servers })); process.exit(0); }\n` +
+      `  if (row.args[1] === 'remove') { delete servers[row.args[2]]; save(); process.exit(0); }\n` +
+      `  if (row.args[1] === 'add') {\n` +
+      `    const url = row.args.find((arg) => arg.startsWith('https://'));\n` +
+      `    if (servers.cohesivity) { console.error('Error: Server "cohesivity" already exists. To update it, remove it first:'); process.exit(1); }\n` +
+      `    if (url === process.env.FAIL_ADD_URL) { console.error('fixture add failure'); process.exit(1); }\n` +
+      `    servers.cohesivity = { tools: ['*'], type: row.args[row.args.indexOf('--transport') + 1], url, source: 'user', enabled: true };\n` +
+      `    save(); process.exit(0);\n` +
+      `  }\n` +
+      `}\n`);
     chmodSync(file, 0o755);
   }
   return {
     commandLog,
     env: { PATH: bin, COMMAND_LOG: commandLog, ...(failing ? { FAIL_COMMAND: failing } : {}) },
   };
+}
+
+// A client that keeps its MCP entries between commands and rejects `mcp add`
+// over an existing `cohesivity` entry until it is removed, as GitHub Copilot
+// CLI 1.0.88 does. `entry` is the saved entry as `copilot mcp list --json`
+// prints it.
+const RETIRED_ENTRY = { tools: ['*'], type: 'http', url: 'https://cohesivity.ai/mcp/manage', source: 'user', enabled: true };
+function fakeClientsWithExistingEntry(home, names, existing, entry = RETIRED_ENTRY, extraEnv = {}) {
+  const fake = fakeClients(home, names);
+  return { ...fake, env: { ...fake.env, EXISTING_MCP: existing, EXISTING_MCP_ENTRY: JSON.stringify(entry), ...extraEnv } };
+}
+
+// The fake writes its state only after a change; until then the saved entry is
+// the one the test seeded.
+function savedEntry(home, command, seeded = RETIRED_ENTRY) {
+  const state = join(home, `.${command}-mcp.json`);
+  return existsSync(state) ? JSON.parse(readFileSync(state, 'utf8')).cohesivity : seeded;
 }
 
 function readCommands(file) {
@@ -659,7 +691,7 @@ test('plain mode detects every supported client independently and uses the Task 
       assert.ok(commands.some((row) => row.command === 'agy' && JSON.stringify(row.args) === JSON.stringify(['plugin', 'install', join(durableRoot, 'antigravity')])));
       assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'install', 'cohesivity', '--marketplace', join(durableRoot, 'openclaw'), '--force'])));
       assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['plugins', 'enable', 'cohesivity'])));
-      assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['mcp', 'set', 'cohesivity', JSON.stringify({ url: 'https://cohesivity.ai/mcp/manage', transport: 'streamable-http', auth: 'oauth' })])));
+      assert.ok(commands.some((row) => row.command === 'openclaw' && JSON.stringify(row.args) === JSON.stringify(['mcp', 'set', 'cohesivity', JSON.stringify({ url: 'https://cohesivity.ai/mcp', transport: 'streamable-http', auth: 'oauth' })])));
       assert.ok(commands.some((row) => row.command === 'hermes' && row.args[0] === 'import-agent'
         && row.args[1] === 'claude-code' && row.args.includes('--overwrite') && row.args.includes('--yes')));
       assert.ok(commands.some((row) => row.command === 'hermes' && JSON.stringify(row.args) === JSON.stringify([
@@ -669,7 +701,7 @@ test('plain mode detects every supported client independently and uses the Task 
         'mcp', 'add', 'cohesivity-local', '--', 'node', join(durableRoot, 'opencode', 'mcp', 'project-bootstrap.mjs'),
       ])));
       assert.ok(commands.some((row) => row.command === 'opencode' && JSON.stringify(row.args) === JSON.stringify([
-        'mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp/manage',
+        'mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp',
       ])));
       for (const client of ['claude', 'codex', 'gemini', 'antigravity', 'openclaw', 'opencode']) {
         assert.ok(existsSync(join(durableRoot, client)), `${client} keeps a durable verified package root`);
@@ -736,9 +768,9 @@ test('OpenCode native MCP reconciliation is idempotent and never starts OAuth', 
       const durable = join(home, '.local', 'share', 'cohesivity', 'plugin-packages', 'opencode');
       assert.deepEqual(readCommands(fake.commandLog).map((row) => row.args), [
         ['mcp', 'add', 'cohesivity-local', '--', 'node', join(durable, 'mcp', 'project-bootstrap.mjs')],
-        ['mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp/manage'],
+        ['mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp'],
         ['mcp', 'add', 'cohesivity-local', '--', 'node', join(durable, 'mcp', 'project-bootstrap.mjs')],
-        ['mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp/manage'],
+        ['mcp', 'add', 'cohesivity', '--url', 'https://cohesivity.ai/mcp'],
       ]);
       assert.equal(readFileSync(join(home, '.agents', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL);
       assert.ok(readCommands(fake.commandLog).every((row) => !row.args.includes('auth')));
@@ -813,9 +845,148 @@ test('unsupported detected adapters receive only the standalone skill and native
       await runCli(base, home, project, [], { plugins: true, env: fake.env });
       assert.equal(readFileSync(join(home, '.agents', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL);
       assert.deepEqual(readCommands(fake.commandLog), [{
-        command: 'grok', args: ['mcp', 'add', '--transport', 'http', 'cohesivity', 'https://cohesivity.ai/mcp/manage'],
+        command: 'grok', args: ['mcp', 'add', '--transport', 'http', 'cohesivity', 'https://cohesivity.ai/mcp'],
       }]);
       assert.ok(!requests.some((request) => request.includes('/plugins/')), 'fallback adapters need no plugin artifact');
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+const COPILOT_ADD = { command: 'copilot', args: ['mcp', 'add', '--transport', 'http', 'cohesivity', 'https://cohesivity.ai/mcp'] };
+const COPILOT_LIST = { command: 'copilot', args: ['mcp', 'list', '--json'] };
+const COPILOT_REMOVE = { command: 'copilot', args: ['mcp', 'remove', 'cohesivity'] };
+
+async function withFallbackRun(fn) {
+  await withStubOrigin(async (base) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    try { await fn(base, home, project); }
+    finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+}
+
+test('fallback adapters replace an existing cohesivity entry that the client refuses to overwrite', async () => {
+  await withFallbackRun(async (base, home, project) => {
+    const fake = fakeClientsWithExistingEntry(home, ['copilot'], 'copilot');
+    const out = await runCli(base, home, project, [], { plugins: true, env: fake.env });
+    assert.deepEqual(readCommands(fake.commandLog), [COPILOT_ADD, COPILOT_LIST, COPILOT_REMOVE, COPILOT_ADD]);
+    assert.equal(savedEntry(home, 'copilot').url, 'https://cohesivity.ai/mcp');
+    assert.doesNotMatch(out, /delivery incomplete|delivery failed/i);
+  });
+});
+
+test('fallback adapters leave an entry that already points to /mcp in place', async () => {
+  await withFallbackRun(async (base, home, project) => {
+    const current = { ...RETIRED_ENTRY, url: 'https://cohesivity.ai/mcp' };
+    const fake = fakeClientsWithExistingEntry(home, ['copilot'], 'copilot', current);
+    const out = await runCli(base, home, project, [], { plugins: true, env: fake.env });
+    assert.deepEqual(readCommands(fake.commandLog), [COPILOT_ADD, COPILOT_LIST]);
+    assert.match(out, /GitHub Copilot CLI already points to https:\/\/cohesivity\.ai\/mcp/);
+    assert.doesNotMatch(out, /delivery incomplete|delivery failed/i);
+  });
+});
+
+test('fallback adapters report a disabled entry on /mcp instead of calling it installed', async () => {
+  await withFallbackRun(async (base, home, project) => {
+    const disabled = { ...RETIRED_ENTRY, url: 'https://cohesivity.ai/mcp', enabled: false };
+    const fake = fakeClientsWithExistingEntry(home, ['copilot'], 'copilot', disabled);
+    const result = await runCli(base, home, project, [], { plugins: true, env: fake.env, result: true }).catch((error) => error);
+    assert.notEqual(result.code ?? result.status, 0);
+    assert.deepEqual(readCommands(fake.commandLog), [COPILOT_ADD, COPILOT_LIST]);
+    assert.deepEqual(savedEntry(home, 'copilot', disabled), disabled);
+    const output = `${result.stdout}${result.stderr}`;
+    assert.match(output, /already points to https:\/\/cohesivity\.ai\/mcp but is disabled/);
+    assert.match(output, /copilot mcp enable cohesivity/);
+    assert.doesNotMatch(output, /GitHub Copilot CLI already points to https:\/\/cohesivity\.ai\/mcp\n/);
+  });
+});
+
+test('fallback adapters restore the previous entry when the replacement add fails', async () => {
+  await withFallbackRun(async (base, home, project) => {
+    const fake = fakeClientsWithExistingEntry(home, ['copilot'], 'copilot', RETIRED_ENTRY, { FAIL_ADD_URL: 'https://cohesivity.ai/mcp' });
+    const result = await runCli(base, home, project, [], { plugins: true, env: fake.env, result: true }).catch((error) => error);
+    assert.notEqual(result.code ?? result.status, 0);
+    assert.deepEqual(readCommands(fake.commandLog), [
+      COPILOT_ADD, COPILOT_LIST, COPILOT_REMOVE, COPILOT_ADD,
+      { command: 'copilot', args: ['mcp', 'add', '--transport', 'http', 'cohesivity', 'https://cohesivity.ai/mcp/manage'] },
+    ]);
+    assert.deepEqual(savedEntry(home, 'copilot'), RETIRED_ENTRY);
+    assert.match(`${result.stdout}${result.stderr}`, /previous entry \(https:\/\/cohesivity\.ai\/mcp\/manage\) was restored/);
+  });
+});
+
+test('fallback adapters never remove an entry they cannot restore exactly', async () => {
+  for (const entry of [
+    { ...RETIRED_ENTRY, headers: { Authorization: '********' } },
+    { ...RETIRED_ENTRY, tools: ['create_tenant'] },
+    { ...RETIRED_ENTRY, enabled: false },
+    { type: 'stdio', command: 'node', args: ['server.mjs'], source: 'user', enabled: true },
+  ]) {
+    await withFallbackRun(async (base, home, project) => {
+      const fake = fakeClientsWithExistingEntry(home, ['copilot'], 'copilot', entry);
+      const result = await runCli(base, home, project, [], { plugins: true, env: fake.env, result: true }).catch((error) => error);
+      assert.notEqual(result.code ?? result.status, 0);
+      assert.deepEqual(readCommands(fake.commandLog), [COPILOT_ADD, COPILOT_LIST]);
+      assert.match(`${result.stdout}${result.stderr}`, /copilot mcp remove cohesivity/);
+    });
+  }
+});
+
+test('fallback adapters without an entry reader report the manual step instead of removing', async () => {
+  await withFallbackRun(async (base, home, project) => {
+    const fake = fakeClientsWithExistingEntry(home, ['grok'], 'grok');
+    const result = await runCli(base, home, project, [], { plugins: true, env: fake.env, result: true }).catch((error) => error);
+    assert.notEqual(result.code ?? result.status, 0);
+    assert.deepEqual(readCommands(fake.commandLog), [
+      { command: 'grok', args: ['mcp', 'add', '--transport', 'http', 'cohesivity', 'https://cohesivity.ai/mcp'] },
+    ]);
+    assert.match(`${result.stdout}${result.stderr}`, /grok mcp remove cohesivity/);
+  });
+});
+
+test('dry-run describes the conditional replacement of an existing fallback entry', async () => {
+  await withFallbackRun(async (base, home, project) => {
+    const fake = fakeClientsWithExistingEntry(home, ['copilot'], 'copilot');
+    const out = await runCli(base, home, project, ['--dry-run'], { plugins: true, env: fake.env });
+    assert.deepEqual(readCommands(fake.commandLog), []);
+    assert.match(out, /would run \S*copilot mcp add --transport http cohesivity https:\/\/cohesivity\.ai\/mcp\n/);
+    assert.match(out, /would replace an existing cohesivity entry that points elsewhere: \S*copilot mcp list --json, \S*copilot mcp remove cohesivity, then the same add; the previous entry is added back if that add fails/);
+  });
+});
+
+test('fallback adapters never remove an entry after an unrelated add failure', async () => {
+  await withStubOrigin(async (base) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    const fake = fakeClients(home, ['copilot'], 'copilot');
+    try {
+      await assert.rejects(runCli(base, home, project, [], { plugins: true, env: fake.env }));
+      assert.deepEqual(readCommands(fake.commandLog), [
+        { command: 'copilot', args: ['mcp', 'add', '--transport', 'http', 'cohesivity', 'https://cohesivity.ai/mcp'] },
+      ]);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('the Cline adapter uses the flags current Cline accepts for a noninteractive remote entry', async () => {
+  await withStubOrigin(async (base) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    const fake = fakeClients(home, ['cline']);
+    try {
+      await runCli(base, home, project, [], { plugins: true, env: fake.env });
+      assert.deepEqual(readCommands(fake.commandLog), [
+        { command: 'cline', args: ['mcp', 'add', 'cohesivity', 'https://cohesivity.ai/mcp', '--transport', 'http', '--yes'] },
+      ]);
     } finally {
       rmSync(home, { recursive: true, force: true });
       rmSync(project, { recursive: true, force: true });
@@ -1048,7 +1219,7 @@ test('artifact byte-size and SHA-256 pins are enforced before extraction', async
 });
 
 test('plugin pins are immutable and config formats are never regex-edited', () => {
-  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/770ba09804a4e15f2321e5bfab2afd7d8c8195d3\/artifacts\/v4\.1\.4\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: '482f6de00ede8d510a7b16052c7519d896efc74cf5f939e4d43fc64382374b60',\s*\}\);/);
+  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/50cb3fa2b80dcb35d13046ce927acd4ebb816f23\/artifacts\/v5\.0\.0\/install-manifest\.v1\.json',\s*manifestBytes: 9400,\s*manifestSha256: '97afafe1fdd02f1a301bc09e68ce2284b7c1cc3b0d5b1c4062e1234194d537e6',\s*\}\);/);
   assert.match(cli, /spawnSync\(command, args, \{[\s\S]*shell: false/);
   assert.doesNotMatch(cli, /config\.(?:json|toml|yaml)[\s\S]{0,100}replace\(/i);
   assert.match(cli, /artifact link .* is not allowed/);
