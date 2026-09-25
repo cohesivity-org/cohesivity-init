@@ -1,13 +1,13 @@
 {
-  "observedAt": "2026-09-25T10:11:40.242Z",
+  "observedAt": "2026-09-25T11:14:04.919Z",
   "mode": "source candidate",
   "candidateSources": {
     "installer": true,
-    "quickstart": true,
-    "canonicalSkill": true
+    "quickstart": false,
+    "canonicalSkill": false
   },
   "installer": {
-    "version": "0.9.1",
+    "version": "0.9.2",
     "skillUrl": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/18c5f37cfe6e2eb165df3ecde588294b7c9a17d3/cohesivity.skill.md",
     "manifest": {
       "url": "https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/9bb263677fc8d2ead506d21de6b284a5cd5078de/artifacts/v5.0.2/install-manifest.v1.json",
