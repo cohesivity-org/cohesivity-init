@@ -159,7 +159,7 @@ const EXPLICIT = String(flag('--runtime') || process.env.COHESIVITY_RUNTIME || '
 // --attribution appends a suffix to the auto-detected harness name.
 const ATTRIBUTION = String(flag('--attribution') || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
 const _detected = EXPLICIT || inferHarness() || 'none';
-const HARNESS = ATTRIBUTION && _detected !== ATTRIBUTION ? `${_detected}:${ATTRIBUTION}` : _detected;
+const HARNESS = ATTRIBUTION && _detected !== ATTRIBUTION ? `${_detected}.${ATTRIBUTION}` : _detected;
 const UA = `{npx:${HARNESS}}`;
 
 async function main() {
