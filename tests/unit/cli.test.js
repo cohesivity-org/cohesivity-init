@@ -349,13 +349,26 @@ function fakeClients(home, names, failing = null) {
       `  process.stdout.write(row.args.includes('--json') ? JSON.stringify(values[key]) : String(values[key]));\n` +
       `}\n` +
       `appendFileSync(process.env.COMMAND_LOG, JSON.stringify(row) + '\\n');\n` +
-      `if (process.env.FAIL_COMMAND === row.command) { console.error('fixture delivery failure'); process.exit(23); }\n`);
+      `if (process.env.FAIL_COMMAND === row.command) { console.error('fixture delivery failure'); process.exit(23); }\n` +
+      `if (process.env.EXISTING_MCP === row.command && row.args[0] === 'mcp') {\n` +
+      `  const { existsSync, writeFileSync } = require('node:fs');\n` +
+      `  const removed = process.env.HOME + '/.' + row.command + '-mcp-removed';\n` +
+      `  if (row.args[1] === 'remove') writeFileSync(removed, '');\n` +
+      `  else if (row.args[1] === 'add' && !existsSync(removed)) { console.error('Error: Server "cohesivity" already exists. To update it, remove it first:'); process.exit(1); }\n` +
+      `}\n`);
     chmodSync(file, 0o755);
   }
   return {
     commandLog,
     env: { PATH: bin, COMMAND_LOG: commandLog, ...(failing ? { FAIL_COMMAND: failing } : {}) },
   };
+}
+
+// A client whose `mcp add` rejects an existing `cohesivity` entry until it is
+// removed, as GitHub Copilot CLI 1.0.88 does.
+function fakeClientsWithExistingEntry(home, names, existing) {
+  const fake = fakeClients(home, names);
+  return { ...fake, env: { ...fake.env, EXISTING_MCP: existing } };
 }
 
 function readCommands(file) {
@@ -816,6 +829,60 @@ test('unsupported detected adapters receive only the standalone skill and native
         command: 'grok', args: ['mcp', 'add', '--transport', 'http', 'cohesivity', 'https://cohesivity.ai/mcp'],
       }]);
       assert.ok(!requests.some((request) => request.includes('/plugins/')), 'fallback adapters need no plugin artifact');
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('fallback adapters replace an existing cohesivity entry that the client refuses to overwrite', async () => {
+  await withStubOrigin(async (base) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    const fake = fakeClientsWithExistingEntry(home, ['copilot'], 'copilot');
+    try {
+      const out = await runCli(base, home, project, [], { plugins: true, env: fake.env });
+      assert.deepEqual(readCommands(fake.commandLog), [
+        { command: 'copilot', args: ['mcp', 'add', '--transport', 'http', 'cohesivity', 'https://cohesivity.ai/mcp'] },
+        { command: 'copilot', args: ['mcp', 'remove', 'cohesivity'] },
+        { command: 'copilot', args: ['mcp', 'add', '--transport', 'http', 'cohesivity', 'https://cohesivity.ai/mcp'] },
+      ]);
+      assert.doesNotMatch(out, /delivery incomplete|delivery failed/i);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('fallback adapters never remove an entry after an unrelated add failure', async () => {
+  await withStubOrigin(async (base) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    const fake = fakeClients(home, ['copilot'], 'copilot');
+    try {
+      await assert.rejects(runCli(base, home, project, [], { plugins: true, env: fake.env }));
+      assert.deepEqual(readCommands(fake.commandLog), [
+        { command: 'copilot', args: ['mcp', 'add', '--transport', 'http', 'cohesivity', 'https://cohesivity.ai/mcp'] },
+      ]);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
+test('the Cline adapter uses the flags current Cline accepts for a noninteractive remote entry', async () => {
+  await withStubOrigin(async (base) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    const fake = fakeClients(home, ['cline']);
+    try {
+      await runCli(base, home, project, [], { plugins: true, env: fake.env });
+      assert.deepEqual(readCommands(fake.commandLog), [
+        { command: 'cline', args: ['mcp', 'add', 'cohesivity', 'https://cohesivity.ai/mcp', '--transport', 'http', '--yes'] },
+      ]);
     } finally {
       rmSync(home, { recursive: true, force: true });
       rmSync(project, { recursive: true, force: true });

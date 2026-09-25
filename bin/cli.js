@@ -238,17 +238,22 @@ function detectClients() {
   ].filter((client) => client.detected);
 }
 
+// `replace` removes an existing `cohesivity` entry when the client refuses to
+// overwrite it on `add` (GitHub Copilot CLI does), so a rerun can move an entry
+// from the retired /mcp/manage URL to MCP_URL. It runs only after `add`
+// reports that the entry already exists.
+const MCP_REMOVE = ['mcp', 'remove', 'cohesivity'];
 const FALLBACK_ADAPTERS = [
-  { id: 'copilot', name: 'GitHub Copilot CLI', bins: ['copilot'], args: [
+  { id: 'copilot', name: 'GitHub Copilot CLI', bins: ['copilot'], replace: MCP_REMOVE, args: [
     'mcp', 'add', '--transport', 'http', 'cohesivity', MCP_URL,
   ] },
   { id: 'vscode', name: 'VS Code', bins: ['code'], args: [
     '--add-mcp', JSON.stringify({ name: 'cohesivity', type: 'http', url: MCP_URL }),
   ] },
-  { id: 'cline', name: 'Cline CLI', bins: ['cline'], args: [
-    'mcp', 'add', 'cohesivity', MCP_URL, '--type', 'http',
+  { id: 'cline', name: 'Cline CLI', bins: ['cline'], replace: MCP_REMOVE, args: [
+    'mcp', 'add', 'cohesivity', MCP_URL, '--transport', 'http', '--yes',
   ] },
-  { id: 'grok', name: 'Grok', bins: ['grok'], args: [
+  { id: 'grok', name: 'Grok', bins: ['grok'], replace: MCP_REMOVE, args: [
     'mcp', 'add', '--transport', 'http', 'cohesivity', MCP_URL,
   ] },
 ];
@@ -334,13 +339,23 @@ async function installClientIntegrations() {
         failures.push({ client: adapter.name, message: 'client state exists but its native CLI is not on PATH' });
         continue;
       }
-      try { runNative(adapter.bin, adapter.args); }
+      try { runFallbackAdapter(adapter); }
       catch (error) { failures.push({ client: adapter.name, message: error.message }); }
     }
   }
 
   printClientInstructions(clients, adapters);
   return failures;
+}
+
+function runFallbackAdapter(adapter) {
+  try {
+    runNative(adapter.bin, adapter.args);
+  } catch (error) {
+    if (!adapter.replace || !/already exists/i.test(error.message)) throw error;
+    runNative(adapter.bin, adapter.replace);
+    runNative(adapter.bin, adapter.args);
+  }
 }
 
 function manifestPin() {
