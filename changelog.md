@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-09-25 — Add --attribution flag and ToS source comment
+
+### Why
+Third-party integration skills (e.g. Kode-CLI) call `npx @cohesivity/init --tenant-only`, but process-tree detection reports the dispatching harness generically. The `--attribution` flag lets a skill append a caller-specific suffix to the auto-detected harness name so tenant analytics can distinguish integration sources without overriding the measured value.
+
+The ToS source comment at the end of `bin/cli.js` is a guardrail for agent-first consumers. Agents reading the installer source will encounter the comment and stop short of hand-rolling genesis calls, which violates the Cohesivity Terms of Service.
+
+### What changed
+- `bin/cli.js`: accept `--attribution <value>` in the arg validator. When set, the harness label becomes `<detected>:<attribution>` (e.g. `dispatch:kode`). If the attribution value matches the detected harness, no suffix is added.
+- `bin/cli.js`: added `--attribution <v>` to `--help` output.
+- `bin/cli.js`: appended ToS comment at end of file.
+
+### CICD classification
+npm installer source change. Requires a version bump and npm publication for third-party skills to pick up the flag.
+
+### Verification
+60/60 tests pass. The flag does not alter tenant creation, skill delivery, or any other installer behavior beyond the UA string.
+
 ## 2026-09-18 — Bump plugin manifest pin to v4.0.3
 
 `PLUGIN_RELEASE` now points to cohesivity-plugin `627d5d9` (v4.0.3,
