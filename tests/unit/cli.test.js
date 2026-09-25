@@ -355,9 +355,15 @@ function fakeClients(home, names, failing = null) {
       `    const entry = (market.plugins || []).find((plugin) => plugin.name === 'cohesivity');\n` +
       `    const source = entry && typeof entry.source === 'string' ? resolve(row.args[3], entry.source) : null;\n` +
       `    if (market.name !== 'cohesivity' || !source || !existsSync(join(source, '.claude-plugin', 'plugin.json'))) { appendFileSync(process.env.COMMAND_LOG, JSON.stringify(row) + '\\n'); console.error('Failed to add marketplace: invalid cohesivity marketplace'); process.exit(1); }\n` +
-      `    writeFileSync(state, source);\n` +
+      `    const saved = existsSync(state) ? JSON.parse(readFileSync(state, 'utf8')) : {};\n` +
+      `    writeFileSync(state, JSON.stringify({ ...saved, source }));\n` +
       `  }\n` +
-      `  if (row.args[1] === 'install' && !existsSync(state)) { appendFileSync(process.env.COMMAND_LOG, JSON.stringify(row) + '\\n'); console.error('Plugin cohesivity@cohesivity not found'); process.exit(1); }\n` +
+      `  if (row.args[1] === 'install' || row.args[1] === 'update') {\n` +
+      `    const saved = existsSync(state) ? JSON.parse(readFileSync(state, 'utf8')) : {};\n` +
+      `    const current = saved.source ? JSON.parse(readFileSync(join(saved.source, '.claude-plugin', 'plugin.json'), 'utf8')).version : null;\n` +
+      `    if (!saved.source || (row.args[1] === 'update' && !saved.installed)) { appendFileSync(process.env.COMMAND_LOG, JSON.stringify(row) + '\\n'); console.error('Plugin cohesivity@cohesivity not found'); process.exit(1); }\n` +
+      `    if (row.args[1] === 'update' || !saved.installed) writeFileSync(state, JSON.stringify({ ...saved, installed: current }));\n` +
+      `  }\n` +
       `}\n` +
       `if (row.command === 'hermes' && row.args[0] === 'config' && row.args[1] === 'get') {\n` +
       `  const key = row.args[2];\n` +
@@ -709,6 +715,7 @@ test('plain mode detects every supported client independently and uses the Task 
         'Claude loads the verified package bytes unchanged from the wrapper');
       assert.equal(readFileSync(join(durableRoot, 'claude', 'plugin', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL);
       assert.ok(commands.some((row) => row.command === 'claude' && JSON.stringify(row.args) === JSON.stringify(['plugin', 'install', 'cohesivity@cohesivity', '--scope', 'user'])));
+      assert.ok(commands.some((row) => row.command === 'claude' && JSON.stringify(row.args) === JSON.stringify(['plugin', 'update', 'cohesivity@cohesivity', '--scope', 'user'])));
       const codexMarket = commands.find((row) => row.command === 'codex' && row.args.slice(0, 3).join(' ') === 'plugin marketplace add');
       assert.equal(codexMarket.args[3], join(durableRoot, 'codex'));
       assert.ok(commands.some((row) => row.command === 'codex' && JSON.stringify(row.args) === JSON.stringify(['plugin', 'add', 'cohesivity@cohesivity'])));
@@ -1044,6 +1051,7 @@ test('plugin dry-run prints exact actions without network, commands, or filesyst
       assert.match(out, /would fetch and validate plugin manifest/);
       assert.match(out, /would atomically replace ~\/\.local\/share\/cohesivity\/plugin-packages\/claude with a local Claude marketplace: <verified:claude> copied unchanged into plugin\/, plus a generated \.claude-plugin\/marketplace\.json naming it/);
       assert.match(out, /would run .*claude plugin marketplace add ~\/\.local\/share\/cohesivity\/plugin-packages\/claude --scope user/);
+      assert.match(out, /would run .*claude plugin update cohesivity@cohesivity --scope user/);
       assert.match(out, /would atomically replace ~\/\.cursor\/plugins\/local\/cohesivity/);
       assert.match(out, /would create a tenant/);
     } finally {
@@ -1156,6 +1164,31 @@ for (const scenario of [
     });
   });
 }
+
+test('a rerun with a newer Claude package updates the installed plugin, not only the staged copy', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+  const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+  const fake = fakeClients(home, ['claude']);
+  const durable = join(home, '.local', 'share', 'cohesivity', 'plugin-packages', 'claude');
+  const claudePackage = (version, marker) => ({ claude: { entries: [
+    { name: '.claude-plugin/plugin.json', body: `{"name":"cohesivity","version":"${version}"}\n` },
+    { name: 'skills/cohesivity/SKILL.md', body: `${TEST_SKILL}${marker}\n` },
+  ] } });
+  const recorded = () => JSON.parse(readFileSync(join(home, '.claude-fake-marketplace'), 'utf8')).installed;
+  try {
+    for (const [version, marker] of [['5.0.2', 'first'], ['5.0.3', 'second']]) {
+      await withStubOrigin(async (base, _seen, _reqs, plugins) => {
+        await runCli(base, home, project, [], { plugins: true, env: { ...fake.env, COHESIVITY_PLUGIN_MANIFEST_PIN: plugins.pin } });
+      }, { pluginOverrides: claudePackage(version, marker) });
+      assert.equal(recorded(), version, `Claude records ${version} as installed`);
+      assert.match(readFileSync(join(durable, 'plugin', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), new RegExp(`${marker}\\n$`));
+      assert.equal(JSON.parse(readFileSync(join(durable, '.claude-plugin', 'marketplace.json'), 'utf8')).plugins[0].version, version);
+    }
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(project, { recursive: true, force: true });
+  }
+});
 
 test('Claude delivery refuses to build a marketplace around a package that is not the cohesivity plugin', async () => {
   await withStubOrigin(async (base, seen, _reqs, plugins) => {

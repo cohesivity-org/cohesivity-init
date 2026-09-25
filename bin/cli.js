@@ -595,6 +595,10 @@ async function installForClient(client, artifact) {
       requireClientCli(client);
       runNative(client.bin, ['plugin', 'marketplace', 'add', nativeSource, '--scope', 'user']);
       runNative(client.bin, ['plugin', 'install', 'cohesivity@cohesivity', '--scope', 'user']);
+      // `install` is a no-op when the plugin is already installed, so a rerun that
+      // stages a newer package would leave Claude recording (and caching) the old
+      // version. `update` re-records it; it exits 0 when already current.
+      runNative(client.bin, ['plugin', 'update', 'cohesivity@cohesivity', '--scope', 'user']);
       break;
     case 'cursor':
       installDirectoryAtomically(root, join(HOME, '.cursor', 'plugins', 'local', 'cohesivity'));
@@ -783,6 +787,7 @@ function describeDryRunPluginDelivery(clients) {
       act(`atomically replace ${nativeRoot} with a local Claude marketplace: ${root} copied unchanged into plugin/, plus a generated .claude-plugin/marketplace.json naming it`);
       act(`run ${formatCommand(client.bin || 'claude', ['plugin', 'marketplace', 'add', nativeRoot, '--scope', 'user'])}`);
       act(`run ${formatCommand(client.bin || 'claude', ['plugin', 'install', 'cohesivity@cohesivity', '--scope', 'user'])}`);
+      act(`run ${formatCommand(client.bin || 'claude', ['plugin', 'update', 'cohesivity@cohesivity', '--scope', 'user'])}`);
     } else if (client.id === 'cursor') {
       act(`atomically replace ${displayPath(join(HOME, '.cursor', 'plugins', 'local', 'cohesivity'))} from ${root}`);
     } else if (client.id === 'codex') {

@@ -636,3 +636,25 @@ OpenClaw 2026.9.x requires `--accept-capabilities`, which its docs say follows a
 user review. Left out of this release by decision and tracked separately.
 
 Closes COH-299
+
+## 2026-09-25 — Record a newer Claude package on rerun
+
+Greptile on PR #47: the fake `claude` accepted `plugin install` without modelling
+an already-installed plugin, so no test checked that a rerun with a newer
+package reaches Claude. Checked against the real Claude Code 2.1.282: for a local
+directory marketplace, `plugin install` on an installed plugin is a no-op. It
+loads in place from `plugin/`, but it keeps recording the old version and cache
+entry, and says `claude plugin update` re-records it. Init now runs
+`claude plugin update cohesivity@cohesivity --scope user` after install. With the
+real CLI that step moved the recorded version from 5.0.2 to 5.0.3 after a
+simulated upgrade, and exits 0 both right after a fresh install and when already
+current.
+
+The fake `claude` now records the installed version the way the real one does:
+`install` sets it once and only `update` re-records it. A new two-run test
+installs 5.0.2 and then 5.0.3, and checks the recorded version, the staged skill
+bytes, and the generated marketplace version after each run. It failed
+(`'5.0.2' !== '5.0.3'`) before the change. All 76 tests pass on Node 18 and 22.
+Two consecutive real installer runs against the published plugin both exit 0.
+
+Refs COH-299

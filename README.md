@@ -19,7 +19,7 @@ Portable directories are staged and atomically replaced.
 
 | detected client | delivery |
 | --- | --- |
-| Claude | build a local marketplace (the verified Claude package copied unchanged into `plugin/`, plus a generated `.claude-plugin/marketplace.json` naming it), then `claude plugin marketplace add <that-root> --scope user` and `claude plugin install cohesivity@cohesivity --scope user` |
+| Claude | build a local marketplace (the verified Claude package copied unchanged into `plugin/`, plus a generated `.claude-plugin/marketplace.json` naming it), then `claude plugin marketplace add <that-root> --scope user`, `claude plugin install cohesivity@cohesivity --scope user`, and `claude plugin update cohesivity@cohesivity --scope user` so a rerun records a newer package |
 | Cursor | atomically copy the portable plugin to `~/.cursor/plugins/local/cohesivity` |
 | Codex | `codex plugin marketplace add <verified-local-marketplace>`, then `codex plugin add cohesivity@cohesivity` |
 | Gemini | first run: `gemini extensions install <verified-local-gemini-root> --consent`; rerun: `gemini extensions update cohesivity` |
