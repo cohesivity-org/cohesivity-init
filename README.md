@@ -175,6 +175,7 @@ server-issued, and not derived from hardware or user data. Delete
 | flag | effect |
 | --- | --- |
 | `--runtime <name>` | override the measured harness label |
+| `--attribution <value>` | append a suffix to the auto-detected harness name |
 | `--no-plugin` | install only the canonical standalone skill; add no plugin or MCP |
 | `--dry-run` | print exact actions with zero side effects |
 | `--base <url>` | API base for tenant bootstrap (default `https://cohesivity.ai`) |
