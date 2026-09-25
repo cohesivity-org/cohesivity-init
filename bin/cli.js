@@ -238,22 +238,38 @@ function detectClients() {
   ].filter((client) => client.detected);
 }
 
-// `replace` removes an existing `cohesivity` entry when the client refuses to
-// overwrite it on `add` (GitHub Copilot CLI does), so a rerun can move an entry
-// from the retired /mcp/manage URL to MCP_URL. It runs only after `add`
-// reports that the entry already exists.
+// GitHub Copilot CLI refuses `mcp add` over an existing `cohesivity` entry, so a
+// rerun could not move an entry from the retired /mcp/manage URL to MCP_URL.
+// `replace` reads the saved entry first and removes it only when it is a plain
+// remote entry that `restoreArgs` can add back exactly, so a failed re-add never
+// leaves the client without its previous entry. Adapters without `replace`
+// never remove anything; they report the manual step instead.
 const MCP_REMOVE = ['mcp', 'remove', 'cohesivity'];
+const COPILOT_PLAIN_ENTRY_KEYS = new Set(['type', 'url', 'tools', 'source', 'enabled']);
+const COPILOT_REPLACE = {
+  listArgs: ['mcp', 'list', '--json'],
+  entry: (listed) => listed?.mcpServers?.cohesivity || null,
+  restoreArgs(entry) {
+    const plain = Object.keys(entry).every((key) => COPILOT_PLAIN_ENTRY_KEYS.has(key))
+      && (entry.type === 'http' || entry.type === 'sse')
+      && typeof entry.url === 'string' && /^https?:\/\//.test(entry.url)
+      && (entry.tools === undefined || (Array.isArray(entry.tools) && entry.tools.length === 1 && entry.tools[0] === '*'))
+      && (entry.source === undefined || entry.source === 'user')
+      && (entry.enabled === undefined || entry.enabled === true);
+    return plain ? ['mcp', 'add', '--transport', entry.type, 'cohesivity', entry.url] : null;
+  },
+};
 const FALLBACK_ADAPTERS = [
-  { id: 'copilot', name: 'GitHub Copilot CLI', bins: ['copilot'], replace: MCP_REMOVE, args: [
+  { id: 'copilot', name: 'GitHub Copilot CLI', bins: ['copilot'], replace: COPILOT_REPLACE, args: [
     'mcp', 'add', '--transport', 'http', 'cohesivity', MCP_URL,
   ] },
   { id: 'vscode', name: 'VS Code', bins: ['code'], args: [
     '--add-mcp', JSON.stringify({ name: 'cohesivity', type: 'http', url: MCP_URL }),
   ] },
-  { id: 'cline', name: 'Cline CLI', bins: ['cline'], replace: MCP_REMOVE, args: [
+  { id: 'cline', name: 'Cline CLI', bins: ['cline'], args: [
     'mcp', 'add', 'cohesivity', MCP_URL, '--transport', 'http', '--yes',
   ] },
-  { id: 'grok', name: 'Grok', bins: ['grok'], replace: MCP_REMOVE, args: [
+  { id: 'grok', name: 'Grok', bins: ['grok'], args: [
     'mcp', 'add', '--transport', 'http', 'cohesivity', MCP_URL,
   ] },
 ];
@@ -332,7 +348,12 @@ async function installClientIntegrations() {
     if (skillError) failures.push({ client: 'standalone skill', message: skillError.message });
     for (const adapter of adapters) {
       if (DRY) {
-        act(`run ${formatCommand(adapter.bin || adapter.bins[0], adapter.args)}`);
+        const bin = adapter.bin || adapter.bins[0];
+        act(`run ${formatCommand(bin, adapter.args)}`);
+        if (adapter.replace) {
+          act(`replace an existing cohesivity entry that points elsewhere: ${formatCommand(bin, adapter.replace.listArgs)}, ` +
+            `${formatCommand(bin, MCP_REMOVE)}, then the same add; the previous entry is added back if that add fails`);
+        }
         continue;
       }
       if (!adapter.bin) {
@@ -351,11 +372,34 @@ async function installClientIntegrations() {
 function runFallbackAdapter(adapter) {
   try {
     runNative(adapter.bin, adapter.args);
+    return;
   } catch (error) {
-    if (!adapter.replace || !/already exists/i.test(error.message)) throw error;
-    runNative(adapter.bin, adapter.replace);
-    runNative(adapter.bin, adapter.args);
+    if (!/already exists/i.test(error.message)) throw error;
+    if (!adapter.replace) throw manualReplacement(adapter, error.message);
   }
+  const entry = adapter.replace.entry(runNativeJson(adapter.bin, adapter.replace.listArgs));
+  if (entry?.url === MCP_URL) { log(`${adapter.name} already points to ${MCP_URL}`); return; }
+  if (!entry) throw manualReplacement(adapter, `${formatCommand(adapter.bin, adapter.replace.listArgs)} did not list the existing cohesivity entry`);
+  const restore = adapter.replace.restoreArgs(entry);
+  if (!restore) {
+    throw manualReplacement(adapter, 'the existing cohesivity entry has settings setup could not add back ' +
+      '(headers, env, a tool filter, a timeout, or a disabled state)');
+  }
+  runNative(adapter.bin, MCP_REMOVE);
+  try {
+    runNative(adapter.bin, adapter.args);
+  } catch (error) {
+    try { runNative(adapter.bin, restore); }
+    catch (restoreError) {
+      throw new Error(`${error.message}; adding back the previous entry (${entry.url}) also failed: ${restoreError.message}`);
+    }
+    throw new Error(`${error.message}; the previous entry (${entry.url}) was restored`);
+  }
+}
+
+function manualReplacement(adapter, reason) {
+  return new Error(`${reason}. Setup left that entry unchanged; running ` +
+    `\`${formatCommand(adapter.bin, MCP_REMOVE)}\` and then setup again moves it to ${MCP_URL}`);
 }
 
 function manifestPin() {

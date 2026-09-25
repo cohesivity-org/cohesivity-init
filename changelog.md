@@ -493,3 +493,39 @@ rendered quickstart/skill candidates: init 0.9.0, plugin 5.0.0, all six client
 skills match. All 68 tests pass.
 
 Refs COH-296
+
+## 2026-09-25 — Replace an existing Copilot entry only when it can be put back
+
+Greptile's re-review of 2eaeb84 found two gaps in the duplicate-entry fix. If
+Copilot's second `mcp add` failed after `mcp remove`, the client was left with
+no `cohesivity` entry at all, including one that already pointed to `/mcp`. And
+`--dry-run` printed only the first `add`, hiding the possible removal.
+
+`runFallbackAdapter` (`bin/cli.js`) now reads the saved entry with
+`copilot mcp list --json` before touching it. An entry already on `MCP_URL` is
+left alone. A plain remote entry (http/sse, all tools, enabled, user source, no
+headers, env, or timeout) is removed and added again; if that add fails, the
+installer adds the old URL back and reports both outcomes. Any other entry is
+left unchanged and setup reports `copilot mcp remove cohesivity` as the manual
+step. Cline and Grok lose the remove path: Cline 3.0.65 already overwrites, and
+Grok's entry format is not verified, so an "already exists" failure there
+reports the same manual step without removing anything. Dry-run now prints the
+conditional replacement.
+
+Alternatives considered: snapshotting `~/.copilot/mcp-config.json` bytes and
+writing them back (exact, but `COPILOT_HOME`-style overrides could point the
+installer at the wrong file), and passing saved headers back through
+`--header` (puts secrets on the command line). Refusing to remove what can't be
+re-added exactly avoids both.
+
+Against real Copilot CLI 1.0.88 in a throwaway home: `list --json` shows
+`tools`, `type`, `url`, `source`, `enabled` for a plain entry, and removing then
+re-adding restores it byte-for-byte; the installer moved a `/mcp/manage` entry
+to `/mcp`, a rerun logged "already points to", and an entry with a header was
+left untouched with the manual step printed. Six new tests (replace, already
+current, restore after a failed add, four unrestorable shapes, no-reader
+adapters, dry-run) join the existing no-removal test; all 73 pass on Node 18
+and 22. Core's pinned `verify-release.mjs` and observation are unchanged, so
+its upstream pin stays valid.
+
+Refs COH-296
