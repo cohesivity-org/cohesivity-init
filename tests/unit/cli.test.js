@@ -25,7 +25,7 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = readFileSync(join(ROOT, 'bin', 'cli.js'), 'utf8');
 
 test('PKG_VERSION matches package.json version', () => {
-  assert.equal(pkg.version, '0.9.1', 'COH-297 plugin 5.0.2 requires init 0.9.1');
+  assert.equal(pkg.version, '0.9.2', 'attribution flag requires init 0.9.2');
   const m = cli.match(/^const PKG_VERSION = '([^']+)';$/m);
   assert.ok(m, 'PKG_VERSION not found in bin/cli.js');
   assert.equal(

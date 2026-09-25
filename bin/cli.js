@@ -44,7 +44,7 @@ import { gunzipSync } from 'node:zlib';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
-const PKG_VERSION = '0.9.1';
+const PKG_VERSION = '0.9.2';
 
 function validateArgs() {
   const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--tenant-only', '--help', '-h']);
