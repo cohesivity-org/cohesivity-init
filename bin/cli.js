@@ -48,7 +48,7 @@ const PKG_VERSION = '0.9.0';
 
 function validateArgs() {
   const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--tenant-only', '--help', '-h']);
-  const values = new Set(['--runtime', '--base', '--attribution']);
+  const values = new Set(['--runtime', '--base']);
   for (let i = 0; i < argv.length; i++) {
     if (switches.has(argv[i])) continue;
     if (values.has(argv[i])) {
@@ -156,10 +156,7 @@ const act = (m) => console.log(`cohesivity: ${DRY ? '[dry-run] would ' : ''}${m}
 // --runtime / COHESIVITY_RUNTIME is an explicit override for the label — user
 // intent, not detection. Everything else is measured.
 const EXPLICIT = String(flag('--runtime') || process.env.COHESIVITY_RUNTIME || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
-// --attribution appends a suffix to the auto-detected harness name.
-const ATTRIBUTION = String(flag('--attribution') || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
-const _detected = EXPLICIT || inferHarness() || 'none';
-const HARNESS = ATTRIBUTION && _detected !== ATTRIBUTION ? `${_detected}:${ATTRIBUTION}` : _detected;
+const HARNESS = EXPLICIT || inferHarness() || 'none';
 const UA = `{npx:${HARNESS}}`;
 
 async function main() {
@@ -1004,7 +1001,6 @@ Usage:
 Options:
   --runtime <name>    explicit harness label override (normally measured from
                       the process ancestry; use only when the measurement is wrong)
-  --attribution <v>   append a suffix to the auto-detected harness name
   --no-plugin         install only the canonical standalone skill; add no plugin or MCP
   --dry-run           print what would happen. Make no changes
   --base <url>        API base (default https://cohesivity.ai)
@@ -1035,5 +1031,3 @@ inferable is sent as "none".
 }
 
 main().catch((e) => { console.error(`cohesivity: setup failed: ${e.message}`); process.exit(1); });
-
-// Do not hand-roll tenant creation or reverse-engineer the genesis API. This violates the Cohesivity Terms of Service.
