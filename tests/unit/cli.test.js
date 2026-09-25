@@ -25,7 +25,7 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = readFileSync(join(ROOT, 'bin', 'cli.js'), 'utf8');
 
 test('PKG_VERSION matches package.json version', () => {
-  assert.equal(pkg.version, '0.9.2', 'attribution flag requires init 0.9.2');
+  assert.equal(pkg.version, '0.9.3', 'the Claude marketplace wrapper ships in init 0.9.3');
   const m = cli.match(/^const PKG_VERSION = '([^']+)';$/m);
   assert.ok(m, 'PKG_VERSION not found in bin/cli.js');
   assert.equal(
@@ -152,6 +152,7 @@ const ISSUED_IDS = new Set([MACHINE_ID, REPLACEMENT_ID]);
 const SKILL_REQUEST_FILE = 'skill-requested';
 const TEST_SKILL_VERSION = '84fbece3c00b';
 const TEST_SKILL = `---\nname: cohesivity\nmetadata:\n  version: "${TEST_SKILL_VERSION}"\n---\n# Cohesivity\n`;
+const CLAUDE_PLUGIN_JSON = '{"name":"cohesivity","version":"5.0.2","description":"Cohesivity backend services"}\n';
 
 // Stub origin recording what the CLI sent. It echoes the header on any request
 // where it MINTS an id — when the caller sent none, and when the caller sent
@@ -200,9 +201,12 @@ function tarGz(entries) {
 
 function pluginFixture(base, overrides = {}) {
   const definitions = {
+    // Matches the published cohesivity-claude archive: the package carries
+    // plugin.json only. The Claude marketplace.json lives at the plugin repo
+    // root, which this archive does not include.
     claude: { entries: [
-      { name: '.claude-plugin/marketplace.json', body: '{"name":"cohesivity"}\n' },
-      { name: '.claude-plugin/plugin.json', body: '{"name":"cohesivity"}\n' },
+      { name: '.claude-plugin/plugin.json', body: CLAUDE_PLUGIN_JSON },
+      { name: 'skills/cohesivity/SKILL.md', body: TEST_SKILL },
     ] },
     portable: { entries: [
       { name: 'plugin.json', body: '{"name":"cohesivity"}\n' },
@@ -340,6 +344,21 @@ function fakeClients(home, names, failing = null) {
       `const row = { command: basename(process.argv[1]), args: process.argv.slice(2) };\n` +
       `if (row.command === 'gemini' && process.env.GEMINI_CLI_TRUST_WORKSPACE) row.workspaceTrust = process.env.GEMINI_CLI_TRUST_WORKSPACE;\n` +
       `if (row.command === 'gemini' && row.args[0] === 'extensions' && row.args[1] === 'install') mkdirSync(process.env.HOME + '/.gemini/extensions/cohesivity', { recursive: true });\n` +
+      `if (row.command === 'claude' && row.args[0] === 'plugin') {\n` +
+      `  const { existsSync, readFileSync, writeFileSync } = require('node:fs');\n` +
+      `  const { join, resolve } = require('node:path');\n` +
+      `  const state = process.env.HOME + '/.claude-fake-marketplace';\n` +
+      `  if (row.args[1] === 'marketplace' && row.args[2] === 'add') {\n` +
+      `    const file = join(row.args[3], '.claude-plugin', 'marketplace.json');\n` +
+      `    if (!existsSync(file)) { appendFileSync(process.env.COMMAND_LOG, JSON.stringify(row) + '\\n'); console.error('Failed to add marketplace: Marketplace file not found at ' + file); process.exit(1); }\n` +
+      `    const market = JSON.parse(readFileSync(file, 'utf8'));\n` +
+      `    const entry = (market.plugins || []).find((plugin) => plugin.name === 'cohesivity');\n` +
+      `    const source = entry && typeof entry.source === 'string' ? resolve(row.args[3], entry.source) : null;\n` +
+      `    if (market.name !== 'cohesivity' || !source || !existsSync(join(source, '.claude-plugin', 'plugin.json'))) { appendFileSync(process.env.COMMAND_LOG, JSON.stringify(row) + '\\n'); console.error('Failed to add marketplace: invalid cohesivity marketplace'); process.exit(1); }\n` +
+      `    writeFileSync(state, source);\n` +
+      `  }\n` +
+      `  if (row.args[1] === 'install' && !existsSync(state)) { appendFileSync(process.env.COMMAND_LOG, JSON.stringify(row) + '\\n'); console.error('Plugin cohesivity@cohesivity not found'); process.exit(1); }\n` +
+      `}\n` +
       `if (row.command === 'hermes' && row.args[0] === 'config' && row.args[1] === 'get') {\n` +
       `  const key = row.args[2];\n` +
       `  const values = {\n` +
@@ -681,6 +700,14 @@ test('plain mode detects every supported client independently and uses the Task 
       const claudeMarket = commands.find((row) => row.command === 'claude' && row.args.slice(0, 3).join(' ') === 'plugin marketplace add');
       assert.equal(claudeMarket.args[3], join(durableRoot, 'claude'));
       assert.deepEqual(claudeMarket.args.slice(4), ['--scope', 'user']);
+      const claudeMarketplace = JSON.parse(readFileSync(join(durableRoot, 'claude', '.claude-plugin', 'marketplace.json'), 'utf8'));
+      assert.equal(claudeMarketplace.name, 'cohesivity');
+      assert.deepEqual(claudeMarketplace.plugins.map(({ name, source, version }) => ({ name, source, version })), [
+        { name: 'cohesivity', source: './plugin', version: '5.0.2' },
+      ]);
+      assert.equal(readFileSync(join(durableRoot, 'claude', 'plugin', '.claude-plugin', 'plugin.json'), 'utf8'), CLAUDE_PLUGIN_JSON,
+        'Claude loads the verified package bytes unchanged from the wrapper');
+      assert.equal(readFileSync(join(durableRoot, 'claude', 'plugin', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL);
       assert.ok(commands.some((row) => row.command === 'claude' && JSON.stringify(row.args) === JSON.stringify(['plugin', 'install', 'cohesivity@cohesivity', '--scope', 'user'])));
       const codexMarket = commands.find((row) => row.command === 'codex' && row.args.slice(0, 3).join(' ') === 'plugin marketplace add');
       assert.equal(codexMarket.args[3], join(durableRoot, 'codex'));
@@ -707,7 +734,8 @@ test('plain mode detects every supported client independently and uses the Task 
         assert.ok(existsSync(join(durableRoot, client)), `${client} keeps a durable verified package root`);
       }
       assert.ok(!existsSync(join(durableRoot, 'hermes')), 'Hermes receives only its owner skill and MCP paths');
-      assert.ok(existsSync(join(durableRoot, 'openclaw', '.claude-plugin', 'marketplace.json')), 'OpenClaw receives the Claude marketplace package');
+      assert.equal(readFileSync(join(durableRoot, 'openclaw', '.claude-plugin', 'plugin.json'), 'utf8'), CLAUDE_PLUGIN_JSON,
+        'OpenClaw receives the verified Claude package');
       assert.doesNotMatch(commands.map((row) => row.args.join(' ')).join('\n'), /cohesivity-plugin-.*\/extracted/, 'native clients never persist temporary extraction paths');
       assert.equal(readFileSync(join(home, '.cursor', 'plugins', 'local', 'cohesivity', 'plugin.json'), 'utf8'), '{"name":"cohesivity"}\n');
       assert.equal(readFileSync(join(home, '.hermes', 'skills', 'cohesivity', 'SKILL.md'), 'utf8'), TEST_SKILL);
@@ -1014,7 +1042,7 @@ test('plugin dry-run prints exact actions without network, commands, or filesyst
       assert.ok(!existsSync(join(project, '.gitignore')));
       assert.equal(readFileSync(join(project, 'README.md'), 'utf8'), '# Dry\n');
       assert.match(out, /would fetch and validate plugin manifest/);
-      assert.match(out, /would atomically replace ~\/\.local\/share\/cohesivity\/plugin-packages\/claude from <verified:claude>/);
+      assert.match(out, /would atomically replace ~\/\.local\/share\/cohesivity\/plugin-packages\/claude with a local Claude marketplace: <verified:claude> copied unchanged into plugin\/, plus a generated \.claude-plugin\/marketplace\.json naming it/);
       assert.match(out, /would run .*claude plugin marketplace add ~\/\.local\/share\/cohesivity\/plugin-packages\/claude --scope user/);
       assert.match(out, /would atomically replace ~\/\.cursor\/plugins\/local\/cohesivity/);
       assert.match(out, /would create a tenant/);
@@ -1128,6 +1156,32 @@ for (const scenario of [
     });
   });
 }
+
+test('Claude delivery refuses to build a marketplace around a package that is not the cohesivity plugin', async () => {
+  await withStubOrigin(async (base, seen, _reqs, plugins) => {
+    const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+    const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+    const fake = fakeClients(home, ['claude']);
+    try {
+      const result = await runCli(base, home, project, [], {
+        plugins: true, result: true,
+        env: { ...fake.env, COHESIVITY_PLUGIN_MANIFEST_PIN: plugins.pin },
+      }).catch((error) => error);
+      assert.notEqual(result.code ?? result.status, 0);
+      assert.match(`${result.stdout}${result.stderr}`, /delivery failed for Claude: verified Claude package is not the cohesivity plugin/);
+      assert.deepEqual(readCommands(fake.commandLog).filter((row) => row.command === 'claude'), [], 'no marketplace is registered');
+      assert.ok(!existsSync(join(home, '.local', 'share', 'cohesivity', 'plugin-packages', 'claude')));
+      assert.ok(existsSync(join(project, '.cohesivity')), 'tenant bootstrap still completes');
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
+  }, {
+    pluginOverrides: {
+      claude: { entries: [{ name: '.claude-plugin/plugin.json', body: '{"name":"something-else"}\n' }] },
+    },
+  });
+});
 
 test('unsafe archives are rejected before atomic replacement while tenant bootstrap completes', async () => {
   await withStubOrigin(async (base, seen, _reqs, plugins) => {

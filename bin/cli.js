@@ -44,7 +44,7 @@ import { gunzipSync } from 'node:zlib';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
-const PKG_VERSION = '0.9.2';
+const PKG_VERSION = '0.9.3';
 
 function validateArgs() {
   const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--tenant-only', '--help', '-h']);
@@ -588,7 +588,8 @@ async function installForClient(client, artifact) {
     || (client.id === 'antigravity' && client.bin)
     ? join(DURABLE_PLUGIN_ROOT, client.id)
     : root;
-  if (nativeSource !== root) installDirectoryAtomically(root, nativeSource);
+  if (client.id === 'claude') installDirectoryAtomically(claudeMarketplaceStage(artifact), nativeSource);
+  else if (nativeSource !== root) installDirectoryAtomically(root, nativeSource);
   switch (client.id) {
     case 'claude':
       requireClientCli(client);
@@ -695,6 +696,35 @@ function runNativeJson(command, args) {
   catch { throw new Error(`${formatCommand(command, args)} returned invalid JSON`); }
 }
 
+// `claude plugin marketplace add <dir>` needs <dir>/.claude-plugin/marketplace.json,
+// and the published Claude package carries only plugin.json (the plugin repo
+// keeps its marketplace.json at the repo root, outside this archive). Claude
+// gets a local marketplace instead: the verified package, copied unchanged into
+// plugin/, next to a generated marketplace.json that names it. The generated
+// file holds no code; every file Claude loads still comes from the verified
+// archive.
+function claudeMarketplaceStage(artifact) {
+  const manifestFile = join(artifact.root, '.claude-plugin', 'plugin.json');
+  let plugin;
+  try { plugin = JSON.parse(readFileSync(manifestFile, 'utf8')); }
+  catch { throw new Error('verified Claude package has no readable .claude-plugin/plugin.json'); }
+  if (plugin?.name !== 'cohesivity') throw new Error('verified Claude package is not the cohesivity plugin');
+  const stage = join(artifact.temporary, 'claude-marketplace');
+  rmSync(stage, { recursive: true, force: true });
+  mkdirSync(stage, { mode: 0o700 });
+  copyVerifiedDirectory(artifact.root, join(stage, 'plugin'));
+  const entry = { name: 'cohesivity', source: './plugin' };
+  if (typeof plugin.version === 'string') entry.version = plugin.version;
+  if (typeof plugin.description === 'string') entry.description = plugin.description;
+  mkdirSync(join(stage, '.claude-plugin'), { mode: 0o700 });
+  writeFileSync(join(stage, '.claude-plugin', 'marketplace.json'), `${JSON.stringify({
+    name: 'cohesivity',
+    owner: { name: 'Cohesivity', url: 'https://cohesivity.ai' },
+    plugins: [entry],
+  }, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
+  return stage;
+}
+
 function installDirectoryAtomically(source, destination) {
   const parent = dirname(destination);
   mkdirSync(parent, { recursive: true, mode: 0o700 });
@@ -750,7 +780,7 @@ function describeDryRunPluginDelivery(clients) {
     const root = `<verified:${client.artifact}>`;
     const nativeRoot = displayPath(join(DURABLE_PLUGIN_ROOT, client.id));
     if (client.id === 'claude') {
-      act(`atomically replace ${nativeRoot} from ${root}`);
+      act(`atomically replace ${nativeRoot} with a local Claude marketplace: ${root} copied unchanged into plugin/, plus a generated .claude-plugin/marketplace.json naming it`);
       act(`run ${formatCommand(client.bin || 'claude', ['plugin', 'marketplace', 'add', nativeRoot, '--scope', 'user'])}`);
       act(`run ${formatCommand(client.bin || 'claude', ['plugin', 'install', 'cohesivity@cohesivity', '--scope', 'user'])}`);
     } else if (client.id === 'cursor') {
