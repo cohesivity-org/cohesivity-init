@@ -19,7 +19,7 @@ Portable directories are staged and atomically replaced.
 
 | detected client | delivery |
 | --- | --- |
-| Claude | `claude plugin marketplace add <verified-local-root> --scope user`, then `claude plugin install cohesivity@cohesivity --scope user` |
+| Claude | build a local marketplace (the verified Claude package copied unchanged into `plugin/`, plus a generated `.claude-plugin/marketplace.json` naming it), then `claude plugin marketplace add <that-root> --scope user`, `claude plugin install cohesivity@cohesivity --scope user`, and `claude plugin update cohesivity@cohesivity --scope user` so a rerun records a newer package |
 | Cursor | atomically copy the portable plugin to `~/.cursor/plugins/local/cohesivity` |
 | Codex | `codex plugin marketplace add <verified-local-marketplace>`, then `codex plugin add cohesivity@cohesivity` |
 | Gemini | first run: `gemini extensions install <verified-local-gemini-root> --consent`; rerun: `gemini extensions update cohesivity` |
@@ -326,9 +326,17 @@ It pins Cohesivity plugin 2.1.4 and accepts Gemini's native workspace trust
 prompt only for the extension-install child process without writing a global
 trust override.
 
-OpenClaw receives the verified Claude marketplace bundle through its documented
-marketplace adapter, which preserves the `cohesivity` identity and projects the
-skill and local MCP server. The installer also saves the remote server through
+Claude Code only accepts a directory as a marketplace when it contains
+`.claude-plugin/marketplace.json`, and the published Claude package carries only
+`plugin.json`. The installer therefore writes a local marketplace: the verified
+package is copied unchanged into `plugin/` and a generated `marketplace.json`
+points at it. That file holds no code, so everything Claude loads still comes from
+the verified archive.
+
+OpenClaw receives the verified Claude package through its documented
+marketplace adapter. OpenClaw 2026.9.x also needs a marketplace manifest there and
+asks for capability consent before installing, so OpenClaw delivery does not
+complete yet; that is tracked separately. The installer also saves the remote server through
 `openclaw mcp set` with Streamable HTTP and OAuth, without starting login.
 
 Hermes qualifies portable MCP server names from the discovered install
