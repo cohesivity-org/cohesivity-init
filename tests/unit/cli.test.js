@@ -25,7 +25,7 @@ const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const cli = readFileSync(join(ROOT, 'bin', 'cli.js'), 'utf8');
 
 test('PKG_VERSION matches package.json version', () => {
-  assert.equal(pkg.version, '0.9.3', 'COH-329 plugin 5.0.5 requires init 0.9.3');
+  assert.equal(pkg.version, '0.9.4', 'plugin 5.1.0 and the attribution skill require init 0.9.4');
   const m = cli.match(/^const PKG_VERSION = '([^']+)';$/m);
   assert.ok(m, 'PKG_VERSION not found in bin/cli.js');
   assert.equal(
@@ -132,8 +132,8 @@ test('the skill pin is a full immutable commit sha', () => {
   assert.ok(m, 'SKILL_PIN not found in bin/cli.js');
   assert.equal(
     m[1],
-    '987771e1f9c3977b2ca04e8c3238e33e069816f7',
-    'init 0.9.3 skill pin must match the COH-329 fallback skill',
+    '04243616951d7b3126a8307f6e190681f465b010',
+    'init 0.9.4 skill pin must match the attribution fallback skill',
   );
   assert.match(
     m[1],
@@ -404,6 +404,31 @@ test('--help documents no-plugin mode', async () => {
   assert.match(stdout, new RegExp(`@cohesivity/init v${pkg.version.replaceAll('.', '\\.')}`));
   assert.match(stdout, /--no-plugin/);
   assert.match(stdout, /standalone skill/i);
+});
+
+test('--attribution keeps the genesis slug charset, so dots and underscores reach the User-Agent', async () => {
+  const forty = 'a'.repeat(40);
+  for (const [value, expected] of [
+    ['gh.x_y', '{npx:claude-web.gh.x_y}'],
+    ['_.Gh.X!', '{npx:claude-web.gh.x}'],
+    ['claude-web', '{npx:claude-web}'],
+    [forty, `{npx:claude-web.${forty}}`],
+    [`${forty}b`, `{npx:claude-web.${forty}}`],
+    ['!!!', '{npx:claude-web}'],
+  ]) {
+    await withStubOrigin(async (base, _seen, reqs) => {
+      const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
+      const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
+      try {
+        mkdirSync(join(home, '.claude'), { recursive: true });
+        await runCli(base, home, project, ['--attribution', value]);
+        assert.equal(reqs[0].ua, expected, value);
+      } finally {
+        rmSync(home, { recursive: true, force: true });
+        rmSync(dirname(project), { recursive: true, force: true });
+      }
+    });
+  }
 });
 
 test('--no-plugin creates a fresh attributed tenant with only the canonical skill', async () => {
@@ -1219,7 +1244,7 @@ test('artifact byte-size and SHA-256 pins are enforced before extraction', async
 });
 
 test('plugin pins are immutable and config formats are never regex-edited', () => {
-  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/5474017d232fa0218986fa9a590c9c643bd4889d\/artifacts\/v5\.0\.5\/install-manifest\.v1\.json',\s*manifestBytes: 10607,\s*manifestSha256: '9a2d61863b7de14374390e0c3654f56bec302c187bc48c31646c6503e8193876',\s*\}\);/);
+  assert.match(cli, /const PLUGIN_RELEASE = Object\.freeze\(\{\s*manifestUrl: 'https:\/\/raw\.githubusercontent\.com\/cohesivity-org\/cohesivity-plugin\/b8fe411980b7c87de5fe08c01be397fbef01a5f0\/artifacts\/v5\.1\.0\/install-manifest\.v1\.json',\s*manifestBytes: 10607,\s*manifestSha256: 'a327adea291c51dfa1f7da64255a8a59a2b0c4722e9866e4a24400e21a484f74',\s*\}\);/);
   assert.match(cli, /spawnSync\(command, args, \{[\s\S]*shell: false/);
   assert.doesNotMatch(cli, /config\.(?:json|toml|yaml)[\s\S]{0,100}replace\(/i);
   assert.match(cli, /artifact link .* is not allowed/);
