@@ -407,7 +407,15 @@ test('--help documents no-plugin mode', async () => {
 });
 
 test('--attribution keeps the genesis slug charset, so dots and underscores reach the User-Agent', async () => {
-  for (const [value, expected] of [['gh.x_y', '{npx:claude-web.gh.x_y}'], ['_.Gh.X!', '{npx:claude-web.gh.x}'], ['claude-web', '{npx:claude-web}']]) {
+  const forty = 'a'.repeat(40);
+  for (const [value, expected] of [
+    ['gh.x_y', '{npx:claude-web.gh.x_y}'],
+    ['_.Gh.X!', '{npx:claude-web.gh.x}'],
+    ['claude-web', '{npx:claude-web}'],
+    [forty, `{npx:claude-web.${forty}}`],
+    [`${forty}b`, `{npx:claude-web.${forty}}`],
+    ['!!!', '{npx:claude-web}'],
+  ]) {
     await withStubOrigin(async (base, _seen, reqs) => {
       const home = mkdtempSync(join(tmpdir(), 'coh-home-'));
       const project = join(mkdtempSync(join(tmpdir(), 'coh-proj-')), 'app');
@@ -421,7 +429,6 @@ test('--attribution keeps the genesis slug charset, so dots and underscores reac
       }
     });
   }
-  assert.match(cli, /replace\(\/\[\^a-z0-9\._-\]\/g, ''\)\.replace\(\/\^\[\._-\]\+\/, ''\)\.slice\(0, 40\)/);
 });
 
 test('--no-plugin creates a fresh attributed tenant with only the canonical skill', async () => {
