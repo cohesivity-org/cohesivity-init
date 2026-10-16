@@ -44,7 +44,7 @@ import { gunzipSync } from 'node:zlib';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const flag = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
-const PKG_VERSION = '0.9.3';
+const PKG_VERSION = '0.9.4';
 
 function validateArgs() {
   const switches = new Set(['--dry-run', '--no-plugin', '--no-branding', '--tenant-only', '--help', '-h']);
@@ -78,16 +78,16 @@ const MACHINE_ID_FILE = join(MACHINE_ID_DIR, 'machine-id');
 
 // The skill is pinned to an immutable commit in the public, auditable repo.
 // Bumping the pin is a deliberate release step. See COH-172.
-const SKILL_PIN = '987771e1f9c3977b2ca04e8c3238e33e069816f7';
+const SKILL_PIN = '04243616951d7b3126a8307f6e190681f465b010';
 const SKILL_URL = `https://raw.githubusercontent.com/cohesivity-org/cohesivity-skill/${SKILL_PIN}/cohesivity.skill.md`;
 
 // Plugin release pins live in this one block. Bump all three values together
 // after publishing a new two-commit artifact manifest from cohesivity-plugin.
 // Tests inject a complete pin with COHESIVITY_PLUGIN_MANIFEST_PIN.
 const PLUGIN_RELEASE = Object.freeze({
-  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/5474017d232fa0218986fa9a590c9c643bd4889d/artifacts/v5.0.5/install-manifest.v1.json',
+  manifestUrl: 'https://raw.githubusercontent.com/cohesivity-org/cohesivity-plugin/b8fe411980b7c87de5fe08c01be397fbef01a5f0/artifacts/v5.1.0/install-manifest.v1.json',
   manifestBytes: 10607,
-  manifestSha256: '9a2d61863b7de14374390e0c3654f56bec302c187bc48c31646c6503e8193876',
+  manifestSha256: 'a327adea291c51dfa1f7da64255a8a59a2b0c4722e9866e4a24400e21a484f74',
 });
 
 const ARTIFACT_KEYS = Object.freeze({
@@ -156,8 +156,10 @@ const act = (m) => console.log(`cohesivity: ${DRY ? '[dry-run] would ' : ''}${m}
 // --runtime / COHESIVITY_RUNTIME is an explicit override for the label — user
 // intent, not detection. Everything else is measured.
 const EXPLICIT = String(flag('--runtime') || process.env.COHESIVITY_RUNTIME || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
-// --attribution appends a suffix to the auto-detected harness name.
-const ATTRIBUTION = String(flag('--attribution') || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
+// --attribution appends a suffix to the auto-detected harness name. Shaped to
+// the slug rule genesis applies to the harness (lowercase letters, digits, '.',
+// '_', '-', starting with a letter or digit, at most 40 characters).
+const ATTRIBUTION = String(flag('--attribution') || '').toLowerCase().replace(/[^a-z0-9._-]/g, '').replace(/^[._-]+/, '').slice(0, 40);
 const _detected = EXPLICIT || inferHarness() || 'none';
 const HARNESS = ATTRIBUTION && _detected !== ATTRIBUTION ? `${_detected}.${ATTRIBUTION}` : _detected;
 const UA = `{npx:${HARNESS}}`;
